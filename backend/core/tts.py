@@ -1,5 +1,8 @@
 import aiohttp
-from typing import Optional, Union
+import json
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Optional, Union, Tuple, Any
 import logging
 import struct
 import wave
@@ -39,7 +42,22 @@ class TTSClient:
             self.rate = settings.tts_rate
             self.pitch = settings.tts_pitch
 
+        # Token cache
+        self._token_cache: Optional[Tuple[str, datetime]] = None
+        self._token_cache_file: Optional[Path] = None
+        if isinstance(settings_or_key, GlobalSettings):
+            # If we have GlobalSettings, try to use its data_dir if available
+            pass
+        # Fallback to config data_dir
+        self._token_cache_file = settings.data_dir / "tts_token_cache.json"
+        self._load_token_cache()
+
     async def _get_access_token(self) -> str:
+        # 先检查缓存
+        cached_token = self._load_token_cache()
+        if cached_token:
+            return cached_token
+
         if not self.key or not self.region:
             raise Exception("Azure TTS key and region not configured")
 
@@ -54,7 +72,12 @@ class TTSClient:
                 if resp.status != 200:
                     text = await resp.text()
                     raise Exception(f"Failed to get TTS token: {resp.status} - {text}")
-                return await resp.text()
+                token = await resp.text()
+
+        # 保存新 token（9 分钟后过期）
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=9)
+        self._save_token_cache(token, expires_at)
+        return token
 
     def _build_ssml(self, text: str, voice: Optional[str] = None, rate: Optional[float] = None, pitch: Optional[int] = None) -> str:
         voice = voice or self.voice
@@ -96,6 +119,34 @@ class TTSClient:
 
         duration = self._calculate_duration(audio_data)
         return audio_data, duration
+
+    def _load_token_cache(self) -> Optional[str]:
+        """从内存和文件加载缓存"""
+        # 先尝试内存缓存
+        if self._token_cache:
+            token, expires_at = self._token_cache
+            if expires_at > datetime.now(timezone.utc):
+                return token
+        # 再尝试文件缓存
+        if self._token_cache_file and self._token_cache_file.exists():
+            try:
+                data = json.loads(self._token_cache_file.read_text())
+                expires_at = datetime.fromisoformat(data["expiresAt"])
+                if expires_at > datetime.now(timezone.utc):
+                    self._token_cache = (data["token"], expires_at)
+                    return data["token"]
+            except Exception:
+                pass
+        return None
+
+    def _save_token_cache(self, token: str, expires_at: datetime):
+        """保存缓存到内存和文件"""
+        self._token_cache = (token, expires_at)
+        if self._token_cache_file:
+            self._token_cache_file.write_text(json.dumps({
+                "token": token,
+                "expiresAt": expires_at.isoformat()
+            }))
 
     def _calculate_duration(self, wav_data: bytes) -> float:
         try:
