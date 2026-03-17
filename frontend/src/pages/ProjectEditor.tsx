@@ -93,6 +93,16 @@ const ProjectEditor: React.FC = () => {
     }
   };
 
+  const handleGenerateSingleAudio = async (storyboardId: string) => {
+    if (!id) return;
+    try {
+      await generationApi.generateAudio(id, storyboardId);
+      setPolling(true);
+    } catch (error) {
+      console.error('Failed to generate audio:', error);
+    }
+  };
+
   const handleExportJianying = async () => {
     if (!id) return;
     try {
@@ -260,27 +270,55 @@ const ProjectEditor: React.FC = () => {
                 {polling ? '生成中...' : '批量生成配音'}
               </button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {project.storyboards.map((sb) => (
-                <div key={sb.id} className="border rounded-lg p-3 flex justify-between items-center">
-                  <div>
-                    <span className="font-medium">分镜 {sb.index + 1}</span>
-                    {sb.audioDuration > 0 && (
-                      <span className="text-sm text-gray-500 ml-2">
-                        ({sb.audioDuration.toFixed(1)}秒)
+                <div key={sb.id} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-semibold">分镜 {sb.index + 1}</span>
+                    <div className="flex items-center gap-2">
+                      {sb.audioDuration > 0 && (
+                        <span className="text-sm text-gray-500">
+                          ({sb.audioDuration.toFixed(1)}秒)
+                        </span>
+                      )}
+                      <span className={`text-sm px-2 py-1 rounded ${
+                        sb.audioStatus === 'completed' ? 'bg-green-100 text-green-700' :
+                        sb.audioStatus === 'generating' ? 'bg-blue-100 text-blue-700' :
+                        sb.audioStatus === 'failed' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {sb.audioStatus === 'completed' ? '已完成' :
+                         sb.audioStatus === 'generating' ? '生成中' :
+                         sb.audioStatus === 'failed' ? '失败' : '待生成'}
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <div>
+                  <p className="text-sm text-gray-600 mb-2">{sb.sceneDescription}</p>
+                  {sb.narration && (
+                    <p className="text-sm text-green-600 mb-1">
+                      <span className="font-medium">旁白:</span> {sb.narration}
+                    </p>
+                  )}
+                  {sb.dialogue && (
+                    <p className="text-sm text-blue-600 mb-2">
+                      <span className="font-medium">台词:</span> {sb.dialogue}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t">
                     {sb.audioStatus === 'completed' && sb.audioPath ? (
-                      <audio controls className="h-8">
+                      <audio controls className="h-8 flex-1">
                         <source src={`/data/projects/${id}/${sb.audioPath}`} />
                       </audio>
                     ) : (
-                      <span className="text-sm text-gray-400">
-                        {sb.audioStatus === 'generating' ? '生成中...' :
-                         sb.audioStatus === 'failed' ? '失败' : '待生成'}
-                      </span>
+                      <div className="flex-1" />
+                    )}
+                    {sb.audioStatus !== 'generating' && (
+                      <button
+                        onClick={() => handleGenerateSingleAudio(sb.id)}
+                        className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600"
+                      >
+                        {sb.audioStatus === 'completed' ? '重新生成' : '生成配音'}
+                      </button>
                     )}
                   </div>
                 </div>
