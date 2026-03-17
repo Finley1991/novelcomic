@@ -136,7 +136,19 @@ async def generate_single_audio(project_id: str, sb_id: str):
 
             settings_obj = storage.load_global_settings()
             tts_client = TTSClient(settings_obj)
-            audio_data, duration = await tts_client.synthesize(text)
+
+            # 获取角色 TTS 配置
+            tts_config = None
+            if storyboard.characterIds:
+                char_map = {c.id: c for c in project.characters}
+                for char_id in storyboard.characterIds:
+                    if char_id in char_map:
+                        char = char_map[char_id]
+                        if hasattr(char, 'ttsConfig') and char.ttsConfig:
+                            tts_config = char.ttsConfig
+                            break
+
+            audio_data, duration = await tts_client.synthesize(text, tts_config=tts_config)
 
             proj_dir = Path(settings.data_dir) / "projects" / project_id
             audio_path = proj_dir / "audio" / f"sb-{storyboard.index:03d}.wav"
