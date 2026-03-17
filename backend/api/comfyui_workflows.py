@@ -77,6 +77,8 @@ async def update_workflow(workflow_id: str, request: UpdateComfyUIWorkflowReques
         workflow.name = request.name
     if request.nodeMappings is not None:
         workflow.nodeMappings = request.nodeMappings
+    if request.defaultParams is not None:
+        workflow.defaultParams = request.defaultParams
 
     storage.save_comfyui_workflow(workflow)
     return workflow
