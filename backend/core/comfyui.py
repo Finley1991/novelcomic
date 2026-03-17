@@ -1,11 +1,13 @@
 import aiohttp
 import asyncio
 from typing import Optional, Dict, Any, List
+from copy import deepcopy
 import uuid
 import logging
 
 from config import settings
 from core.retry import async_retry
+from models.schemas import ComfyUINodeMappings
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,57 @@ class ComfyUIClient:
                     return await resp.read()
                 return None
 
+    def _apply_workflow_mappings(
+        self,
+        workflow: Dict[str, Any],
+        mappings: ComfyUINodeMappings,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 30,
+        cfg: float = 7.0,
+        sampler_name: str = "dpmpp_2m_sde_karras",
+        seed: int = 0,
+        batch_size: int = 1
+    ) -> Dict[str, Any]:
+        workflow_copy = deepcopy(workflow)
+
+        if mappings.positivePromptNodeId:
+            node = workflow_copy.get(mappings.positivePromptNodeId, {})
+            if "inputs" in node:
+                node["inputs"][mappings.positivePromptField] = prompt
+
+        if mappings.negativePromptNodeId:
+            node = workflow_copy.get(mappings.negativePromptNodeId, {})
+            if "inputs" in node:
+                node["inputs"][mappings.negativePromptField] = negative_prompt or "bad anatomy, bad hands"
+
+        if mappings.widthNodeId:
+            node = workflow_copy.get(mappings.widthNodeId, {})
+            if "inputs" in node:
+                node["inputs"][mappings.widthField] = width
+
+        if mappings.heightNodeId:
+            node = workflow_copy.get(mappings.heightNodeId, {})
+            if "inputs" in node:
+                node["inputs"][mappings.heightField] = height
+
+        if mappings.samplerNodeId:
+            node = workflow_copy.get(mappings.samplerNodeId, {})
+            if "inputs" in node:
+                node["inputs"][mappings.samplerField] = sampler_name
+                node["inputs"][mappings.stepsField] = steps
+                node["inputs"][mappings.cfgField] = cfg
+                node["inputs"][mappings.seedField] = seed
+
+        if mappings.batchNodeId:
+            node = workflow_copy.get(mappings.batchNodeId, {})
+            if "inputs" in node:
+                node["inputs"][mappings.batchSizeField] = batch_size
+
+        return workflow_copy
+
     async def generate_image(
         self,
         prompt: str,
@@ -65,19 +118,37 @@ class ComfyUIClient:
         height: int = 1024,
         steps: int = 30,
         cfg: float = 7.0,
-        sampler_name: str = "dpmpp_2m_sde_karras"
+        sampler_name: str = "dpmpp_2m_sde_karras",
+        workflow_id: Optional[str] = None
     ) -> Optional[bytes]:
-        workflow = self._build_text_to_image_workflow(
+        from core.storage import storage
+
+        if workflow_id:
+            workflow = storage.get_comfyui_workflow(workflow_id)
+        else:
+            settings_obj = storage.load_global_settings()
+            if not settings_obj.comfyui.activeWorkflowId:
+                raise Exception("No active ComfyUI workflow. Please upload and activate a workflow in Settings.")
+            workflow = storage.get_comfyui_workflow(settings_obj.comfyui.activeWorkflowId)
+
+        if not workflow:
+            raise Exception("ComfyUI workflow not found")
+
+        workflow_json = self._apply_workflow_mappings(
+            workflow=workflow.workflowJson,
+            mappings=workflow.nodeMappings,
             prompt=prompt,
             negative_prompt=negative_prompt,
             width=width,
             height=height,
             steps=steps,
             cfg=cfg,
-            sampler_name=sampler_name
+            sampler_name=sampler_name,
+            seed=0,
+            batch_size=1
         )
 
-        prompt_id = await self._queue_prompt(workflow)
+        prompt_id = await self._queue_prompt(workflow_json)
         logger.info(f"Queued ComfyUI prompt: {prompt_id}")
 
         max_wait = settings.comfyui_timeout
@@ -103,73 +174,3 @@ class ComfyUIClient:
             waited += poll_interval
 
         raise Exception("Timeout waiting for ComfyUI generation")
-
-    def _build_text_to_image_workflow(
-        self,
-        prompt: str,
-        negative_prompt: str = "",
-        width: int = 1024,
-        height: int = 1024,
-        steps: int = 30,
-        cfg: float = 7.0,
-        sampler_name: str = "dpmpp_2m_sde_karras"
-    ) -> Dict[str, Any]:
-        return {
-            "3": {
-                "inputs": {
-                    "seed": 0,
-                    "steps": steps,
-                    "cfg": cfg,
-                    "sampler_name": sampler_name,
-                    "scheduler": "karras",
-                    "denoise": 1.0,
-                    "model": ["4", 0],
-                    "positive": ["6", 0],
-                    "negative": ["7", 0],
-                    "latent_image": ["5", 0]
-                },
-                "class_type": "KSampler"
-            },
-            "4": {
-                "inputs": {
-                    "ckpt_name": "v1-5-pruned-emaonly.ckpt"
-                },
-                "class_type": "CheckpointLoaderSimple"
-            },
-            "5": {
-                "inputs": {
-                    "width": width,
-                    "height": height,
-                    "batch_size": 1
-                },
-                "class_type": "EmptyLatentImage"
-            },
-            "6": {
-                "inputs": {
-                    "text": prompt,
-                    "clip": ["4", 1]
-                },
-                "class_type": "CLIPTextEncode"
-            },
-            "7": {
-                "inputs": {
-                    "text": negative_prompt or "bad anatomy, bad hands",
-                    "clip": ["4", 1]
-                },
-                "class_type": "CLIPTextEncode"
-            },
-            "8": {
-                "inputs": {
-                    "samples": ["3", 0],
-                    "vae": ["4", 2]
-                },
-                "class_type": "VAEDecode"
-            },
-            "9": {
-                "inputs": {
-                    "filename_prefix": "ComfyUI",
-                    "images": ["8", 0]
-                },
-                "class_type": "SaveImage"
-            }
-        }
