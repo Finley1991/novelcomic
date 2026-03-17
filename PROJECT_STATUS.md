@@ -41,6 +41,8 @@ novelcomic/
 | `api/projects.py` | 项目、角色、分镜、设置 API | ✅ 完成 |
 | `api/generation.py` | 图像/音频生成 API | ✅ 完成 |
 | `api/export.py` | 剪映导出 API | ✅ 完成 |
+| `api/comfyui_workflows.py` | ComfyUI 工作流管理 API | ✅ 完成 |
+| `api/settings.py` | Settings API（新增） | ✅ 完成 |
 
 ### 其他核心模块
 
@@ -124,27 +126,47 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
 
 ### 添加的功能
 
-1. **OpenAI 支持** (2026-03-17)
+1. **ComfyUI 工作流参数配置** (2026-03-17)
+   - 新增 `ComfyUIWorkflowParams` 数据模型
+   - 每个工作流支持独立的默认参数配置
+   - 支持配置：宽度、高度、CFG、Steps、Seed、Sampler、Batch Size
+   - 支持正向提示词前缀/后缀
+   - 支持否定提示词覆盖
+   - 前端 UI 完整支持参数配置
+
+2. **ComfyUI 工作流管理增强** (2026-03-17)
+   - 工作流节点解析与映射配置
+   - 支持设置激活工作流
+   - 工作流数据持久化
+   - 参数应用逻辑更新（保留工作流原值）
+
+3. **Settings API 端点** (2026-03-17)
+   - 新增 `GET /api/settings` 获取全局设置
+   - 新增 `PUT /api/settings` 更新全局设置
+   - 新增 `POST /api/settings/llm/test` 测试 LLM 连接
+
+4. **OpenAI 支持** (2026-03-17)
    - 新增 `OpenAISettings` 模型，包含 proxy 字段
    - 新增 `OpenAIClient` 类，支持 aiohttp 代理
    - 新增 `LLMProvider` 枚举和 `LLMSettings` 模型
    - 新增统一的 `LLMClient` 接口
 
-2. **代理配置** (2026-03-17)
+5. **代理配置** (2026-03-17)
    - OpenAI 设置中新增代理输入字段
    - 默认占位符: `http://127.0.0.1:7897`
    - 支持通过环境变量或 UI 配置
 
-3. **LLM 测试功能** (2026-03-17)
+6. **LLM 测试功能** (2026-03-17)
    - 新增 `/api/settings/llm/test` 端点
    - 前端新增"测试连接"按钮
    - 显示测试结果（成功/失败、提供商、响应内容）
 
-4. **前端 UI 更新** (2026-03-17)
+7. **前端 UI 更新** (2026-03-17)
    - LLM 提供商下拉选择 (Ollama / OpenAI)
    - 条件渲染对应提供商的设置表单
    - OpenAI 设置包含：API Key, Base URL, 模型, 代理
    - 测试结果显示区域
+   - ComfyUI 工作流参数配置 UI
 
 ## API 端点列表
 
@@ -155,6 +177,18 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
 | GET | `/api/settings` | 获取全局设置 |
 | PUT | `/api/settings` | 更新全局设置 |
 | POST | `/api/settings/llm/test` | 测试 LLM 连接 |
+
+### ComfyUI 工作流相关
+
+| 方法 | 端点 | 功能 |
+|------|------|------|
+| GET | `/api/comfyui-workflows` | 列出所有工作流 |
+| POST | `/api/comfyui-workflows` | 上传新工作流 |
+| GET | `/api/comfyui-workflows/{id}` | 获取工作流详情 |
+| PUT | `/api/comfyui-workflows/{id}` | 更新工作流（含参数配置） |
+| DELETE | `/api/comfyui-workflows/{id}` | 删除工作流 |
+| PUT | `/api/comfyui-workflows/{id}/activate` | 设置为激活工作流 |
+| POST | `/api/comfyui-workflows/parse` | 解析工作流节点 |
 
 ### 项目相关
 
@@ -295,6 +329,54 @@ class OpenAISettings:
     chunkSize: int = 4000
     proxy: str = ""  # 新增
 ```
+
+### ComfyUIWorkflowParams
+
+```python
+class ComfyUIWorkflowParams:
+    width: Optional[int] = None
+    height: Optional[int] = None
+    cfg: Optional[float] = None
+    steps: Optional[int] = None
+    seed: Optional[int] = None
+    sampler: Optional[str] = None
+    batchSize: Optional[int] = None
+    positivePromptPrefix: Optional[str] = None
+    positivePromptSuffix: Optional[str] = None
+    negativePromptOverride: Optional[str] = None
+```
+
+### ComfyUIWorkflow
+
+```python
+class ComfyUIWorkflow:
+    id: str
+    name: str
+    workflowData: Dict[str, Any]
+    nodeMappings: ComfyUINodeMappings
+    defaultParams: Optional[ComfyUIWorkflowParams] = None  # 新增
+    isActive: bool = False
+    createdAt: str
+    updatedAt: str
+```
+
+## 已修复的问题
+
+### 1. LLM 客户端硬编码问题
+- **问题**: `generation.py` 中硬编码使用 `OllamaClient()`，不支持 OpenAI
+- **修复**: 替换为统一的 `LLMClient`，根据设置自动选择提供商
+
+### 2. 代理配置导致连接失败
+- **问题**: 默认代理 `http://127.0.0.1:7897` 导致 OpenAI 连接失败
+- **修复**: 清空默认代理配置，用户按需配置
+
+### 3. ComfyUI 采样器参数覆盖问题
+- **问题**: 代码强制覆盖采样器等参数，与工作流原值不匹配
+- **修复**: 移除强制覆盖，保留工作流原值，通过 defaultParams 可选配置
+
+### 4. 缺失的 Settings API 端点
+- **问题**: 前端调用 `/api/settings` 但后端没有实现
+- **修复**: 新建 `backend/api/settings.py` 并在 `main.py` 注册
 
 ## 待办事项
 
