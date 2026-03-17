@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from config import settings, ensure_data_dirs
-from api import projects, generation, export
+from api import projects, generation, export, comfyui_workflows
 
 app = FastAPI(title="NovelComic API", version="1.0.0")
 
@@ -27,6 +27,7 @@ if data_path.exists():
 app.include_router(projects.router)
 app.include_router(generation.router)
 app.include_router(export.router)
+app.include_router(comfyui_workflows.router, prefix="/api/comfyui", tags=["comfyui"])
 
 @app.get("/")
 async def root():
