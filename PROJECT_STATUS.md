@@ -49,7 +49,7 @@ novelcomic/
 | 文件 | 功能 | 状态 |
 |------|------|------|
 | `core/comfyui.py` | ComfyUI 图像生成客户端 | ✅ 完成 |
-| `core/tts.py` | 微软 TTS 音频生成客户端 | ✅ 完成 |
+| `core/tts.py` | 微软 TTS 音频生成客户端（含 Token 缓存） | ✅ 完成 |
 | `core/jianying.py` | 剪映项目导出 | ✅ 完成 |
 
 ## 前端文件结构
@@ -58,13 +58,33 @@ novelcomic/
 |------|------|------|
 | `src/main.tsx` | React 入口 | ✅ 完成 |
 | `src/pages/Dashboard.tsx` | 项目列表页面 | ✅ 完成 |
-| `src/pages/ProjectEditor.tsx` | 项目编辑页面 | ✅ 完成 |
-| `src/pages/Settings.tsx` | 设置页面（含 LLM 测试） | ✅ 完成 |
+| `src/pages/ProjectEditor.tsx` | 项目编辑页面（含角色声音配置） | ✅ 完成 |
+| `src/pages/Settings.tsx` | 设置页面（含 LLM/TTS 测试） | ✅ 完成 |
 | `src/services/api.ts` | API 客户端和类型定义 | ✅ 完成 |
 
 ## 核心功能实现
 
-### 1. LLM 提供商切换
+### 1. TTS 配音功能增强
+
+**实现位置:**
+- 后端: `models/schemas.py` - `TTSConfig` 模型
+- 后端: `core/tts.py` - Token 缓存, tts_config 参数支持
+- 后端: `api/generation.py` - 角色 ttsConfig 支持
+- 前端: `ProjectEditor.tsx` - 角色声音配置 UI, 配音步骤增强
+
+**配置字段 (TTSConfig):**
+```python
+voice: str    # 声音名称 (如 zh-CN-XiaoxiaoNeural)
+rate: float   # 语速 (0.5x - 2.0x)
+pitch: int    # 音调 (-100Hz - +100Hz)
+```
+
+**Token 缓存策略:**
+- 内存缓存 + 文件缓存双重保障
+- 缓存有效期: 9 分钟 (Azure Token 有效期为 10 分钟)
+- 缓存文件位置: `data/tts_token_cache.json`
+
+### 2. LLM 提供商切换
 
 **实现位置:**
 - 后端: `models/schemas.py` - `LLMProvider`, `LLMSettings`, `OpenAISettings`
@@ -82,7 +102,7 @@ chunkSize: int        # 文本分块大小
 proxy: str            # HTTP 代理 URL (如 http://127.0.0.1:7897)
 ```
 
-### 2. 代理支持
+### 3. 代理支持
 
 **实现位置:** `core/openai_client.py`
 
@@ -100,7 +120,7 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
         request_kwargs["proxy"] = self.proxy
 ```
 
-### 3. LLM 测试端点
+### 4. LLM 测试端点
 
 **API 端点:** `POST /api/settings/llm/test`
 
@@ -111,7 +131,18 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
 - 发送简单测试提示："请用一句话介绍你自己。"
 - 返回 `{success, provider, response, error}`
 
-### 4. 设置持久化
+### 5. TTS 测试端点
+
+**API 端点:** `POST /api/settings/tts/test`
+
+**实现位置:** `api/settings.py`
+
+**功能:**
+- 使用当前配置的 TTS 设置
+- 生成简单测试音频："你好，这是一个测试。"
+- 返回 `{success, voice, duration, audioSize, error}`
+
+### 6. 设置持久化
 
 **存储位置:** `data/config.json`
 
@@ -126,7 +157,22 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
 
 ### 添加的功能
 
-1. **ComfyUI 工作流参数配置** (2026-03-17)
+1. **TTS 配音功能增强** (2026-03-17)
+   - 新增 `TTSConfig` 数据模型
+   - 角色独立声音配置：每个角色可配置独立的 TTS 参数
+   - 支持配置：声音（voice）、语速（rate）、音调（pitch）
+   - TTSClient Token 缓存优化（缓存 9 分钟）
+   - 配音生成步骤增强：显示完整旁白/台词文本
+   - 分镜独立配音生成按钮
+   - 角色声音配置 UI：可展开的声音配置区域
+   - 常用中文声音列表：Xiaoxiao, Yunxi, Yunyang, Xiaoyou, Xiaohan, Yunjian
+
+2. **TTS 测试功能** (2026-03-17)
+   - 新增 `POST /api/settings/tts/test` 端点
+   - 前端新增"测试 TTS"按钮
+   - 实时显示测试结果（成功/失败、声音、音频时长）
+
+3. **ComfyUI 工作流参数配置** (2026-03-17)
    - 新增 `ComfyUIWorkflowParams` 数据模型
    - 每个工作流支持独立的默认参数配置
    - 支持配置：宽度、高度、CFG、Steps、Seed、Sampler、Batch Size
@@ -134,39 +180,40 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
    - 支持否定提示词覆盖
    - 前端 UI 完整支持参数配置
 
-2. **ComfyUI 工作流管理增强** (2026-03-17)
+4. **ComfyUI 工作流管理增强** (2026-03-17)
    - 工作流节点解析与映射配置
    - 支持设置激活工作流
    - 工作流数据持久化
    - 参数应用逻辑更新（保留工作流原值）
 
-3. **Settings API 端点** (2026-03-17)
+5. **Settings API 端点** (2026-03-17)
    - 新增 `GET /api/settings` 获取全局设置
    - 新增 `PUT /api/settings` 更新全局设置
    - 新增 `POST /api/settings/llm/test` 测试 LLM 连接
 
-4. **OpenAI 支持** (2026-03-17)
+6. **OpenAI 支持** (2026-03-17)
    - 新增 `OpenAISettings` 模型，包含 proxy 字段
    - 新增 `OpenAIClient` 类，支持 aiohttp 代理
    - 新增 `LLMProvider` 枚举和 `LLMSettings` 模型
    - 新增统一的 `LLMClient` 接口
 
-5. **代理配置** (2026-03-17)
+7. **代理配置** (2026-03-17)
    - OpenAI 设置中新增代理输入字段
    - 默认占位符: `http://127.0.0.1:7897`
    - 支持通过环境变量或 UI 配置
 
-6. **LLM 测试功能** (2026-03-17)
+8. **LLM 测试功能** (2026-03-17)
    - 新增 `/api/settings/llm/test` 端点
    - 前端新增"测试连接"按钮
    - 显示测试结果（成功/失败、提供商、响应内容）
 
-7. **前端 UI 更新** (2026-03-17)
+9. **前端 UI 更新** (2026-03-17)
    - LLM 提供商下拉选择 (Ollama / OpenAI)
    - 条件渲染对应提供商的设置表单
    - OpenAI 设置包含：API Key, Base URL, 模型, 代理
    - 测试结果显示区域
    - ComfyUI 工作流参数配置 UI
+   - 角色声音配置 UI（声音选择器、语速滑块、音调滑块）
 
 ## API 端点列表
 
@@ -177,6 +224,7 @@ async with aiohttp.ClientSession(timeout=timeout, connector=connector, trust_env
 | GET | `/api/settings` | 获取全局设置 |
 | PUT | `/api/settings` | 更新全局设置 |
 | POST | `/api/settings/llm/test` | 测试 LLM 连接 |
+| POST | `/api/settings/tts/test` | 测试 TTS 连接 |
 
 ### ComfyUI 工作流相关
 
@@ -330,6 +378,30 @@ class OpenAISettings:
     proxy: str = ""  # 新增
 ```
 
+### TTSConfig
+
+```python
+class TTSConfig:
+    voice: str = "zh-CN-XiaoxiaoNeural"
+    rate: float = 1.0
+    pitch: int = 0
+```
+
+### Character
+
+```python
+class Character:
+    id: str
+    name: str
+    description: str
+    characterPrompt: str
+    negativePrompt: str
+    referenceImages: List[str]
+    loraName: Optional[str]
+    loraWeight: float
+    ttsConfig: Optional[TTSConfig] = None
+```
+
 ### ComfyUIWorkflowParams
 
 ```python
@@ -362,19 +434,23 @@ class ComfyUIWorkflow:
 
 ## 已修复的问题
 
-### 1. LLM 客户端硬编码问题
+### 1. TTS 配置不从 storage 加载
+- **问题**: TTSClient 使用 config.py 硬编码默认值，不从 storage.load_global_settings() 加载
+- **修复**: 更新 TTSClient 接受 GlobalSettings 对象，更新 generation.py 从 storage 加载设置
+
+### 2. LLM 客户端硬编码问题
 - **问题**: `generation.py` 中硬编码使用 `OllamaClient()`，不支持 OpenAI
 - **修复**: 替换为统一的 `LLMClient`，根据设置自动选择提供商
 
-### 2. 代理配置导致连接失败
+### 3. 代理配置导致连接失败
 - **问题**: 默认代理 `http://127.0.0.1:7897` 导致 OpenAI 连接失败
 - **修复**: 清空默认代理配置，用户按需配置
 
-### 3. ComfyUI 采样器参数覆盖问题
+### 4. ComfyUI 采样器参数覆盖问题
 - **问题**: 代码强制覆盖采样器等参数，与工作流原值不匹配
 - **修复**: 移除强制覆盖，保留工作流原值，通过 defaultParams 可选配置
 
-### 4. 缺失的 Settings API 端点
+### 5. 缺失的 Settings API 端点
 - **问题**: 前端调用 `/api/settings` 但后端没有实现
 - **修复**: 新建 `backend/api/settings.py` 并在 `main.py` 注册
 
@@ -384,8 +460,12 @@ class ComfyUIWorkflow:
 - [ ] 添加设置导入/导出功能
 - [ ] 添加 LLM 使用量统计
 - [ ] 添加配置验证
+- [ ] 添加 TTS 试听功能
+- [ ] 添加独立的配音管理页面
 
 ## 相关文档
 
 - 后端: `README.md`
 - 前端: `frontend/README.md`
+- 设计文档: `docs/superpowers/specs/`
+- 实施计划: `docs/superpowers/plans/`

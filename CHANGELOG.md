@@ -5,6 +5,19 @@
 ### 2026-03-17
 
 #### 新增功能
+- **TTS 配音功能增强**
+  - 角色独立声音配置：每个角色可配置独立的 TTS 参数
+  - 支持配置：声音（voice）、语速（rate）、音调（pitch）
+  - TTSClient Token 缓存：缓存 Azure TTS access token 9 分钟
+  - 配音生成步骤增强：显示完整旁白/台词文本
+  - 分镜独立配音生成按钮
+  - 角色声音配置 UI：可展开的声音配置区域
+
+- **TTS 测试功能**
+  - 新增 `POST /api/settings/tts/test` 测试 TTS 连接
+  - 前端新增"测试 TTS"按钮
+  - 实时显示测试结果
+
 - **ComfyUI 工作流参数配置**
   - 为每个工作流添加独立的默认参数配置
   - 支持配置：宽度、高度、CFG、Steps、Seed、Sampler、Batch Size
@@ -23,12 +36,17 @@
   - 新增 `POST /api/settings/llm/test` 测试 LLM 连接
 
 #### 修复
+- 修复 TTS 配置不从 storage 加载的问题
 - 修复 LLM 客户端硬编码问题，统一使用 LLMClient
 - 修复代理配置导致的连接失败问题（清空默认代理）
 - 修复 ComfyUI 采样器参数覆盖问题，保留工作流原值
 - 修复缺失的 settings API 端点
 
 #### 技术改进
+- 新增 `TTSConfig` 数据模型
+- 新增 `Character` 模型的 `ttsConfig` 字段
+- 更新 `TTSClient` 支持 token 缓存和 tts_config 参数
+- 更新 `generation.py` 支持角色 ttsConfig
 - 新增 `ComfyUIWorkflowParams` 数据模型
 - 新增 `ComfyUIWorkflow` 模型的 `defaultParams` 字段
 - 更新 `comfyui.py` 的 `_apply_workflow_mappings` 方法支持参数应用
@@ -37,16 +55,20 @@
 #### 文件清单
 **新增文件:**
 - `backend/api/settings.py` - Settings API 端点
+- `docs/superpowers/specs/2026-03-17-tts-enhancements-design.md` - TTS 增强设计文档
+- `docs/superpowers/plans/2026-03-17-tts-enhancements.md` - TTS 增强实施计划
 - `docs/superpowers/specs/2026-03-17-workflow-params-config-design.md` - 设计文档
 - `docs/superpowers/plans/2026-03-17-workflow-params-config.md` - 实施计划
 
 **修改文件:**
-- `backend/models/schemas.py` - 添加 ComfyUIWorkflowParams, 更新 ComfyUIWorkflow
-- `backend/core/comfyui.py` - 参数应用逻辑更新
-- `backend/api/comfyui_workflows.py` - 支持更新 defaultParams
+- `backend/models/schemas.py` - 添加 TTSConfig, 更新 Character
+- `backend/core/tts.py` - Token 缓存, tts_config 参数支持
+- `backend/api/generation.py` - 支持角色 ttsConfig
+- `backend/api/projects.py` - 添加 TTS 测试端点
 - `backend/main.py` - 注册 settings 路由
 - `frontend/src/services/api.ts` - TypeScript 类型定义更新
-- `frontend/src/pages/Settings.tsx` - 工作流参数配置 UI
+- `frontend/src/pages/ProjectEditor.tsx` - 配音步骤增强, 角色声音配置 UI
+- `frontend/src/pages/Settings.tsx` - TTS 测试 UI, 工作流参数配置 UI
 - `README.md` - 功能说明更新
 
 ### 2026-03-17 (之前)
