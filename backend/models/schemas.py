@@ -102,11 +102,33 @@ class ComfyUINodeMappings(BaseModel):
     batchNodeId: Optional[str] = None
     batchSizeField: str = "batch_size"
 
+
+class ComfyUIWorkflowParams(BaseModel):
+    """工作流默认参数配置"""
+    # 尺寸参数
+    width: int = 1280
+    height: int = 960
+
+    # 采样参数
+    steps: int = 30
+    cfg: float = 7.0
+    samplerName: Optional[str] = None  # None = 使用工作流原值
+    seed: int = 0  # 0 = 随机
+
+    # 批次参数
+    batchSize: int = 1
+
+    # 提示词参数
+    positivePromptPrefix: str = ""
+    positivePromptSuffix: str = ""
+    negativePromptOverride: Optional[str] = None  # None = 不覆盖
+
 class ComfyUIWorkflow(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     workflowJson: Dict[str, Any]
     nodeMappings: ComfyUINodeMappings = Field(default_factory=ComfyUINodeMappings)
+    defaultParams: ComfyUIWorkflowParams = Field(default_factory=ComfyUIWorkflowParams)
     createdAt: datetime = Field(default_factory=datetime.now)
 
 class ComfyUINodeInfo(BaseModel):
@@ -177,6 +199,7 @@ class CreateComfyUIWorkflowRequest(BaseModel):
 class UpdateComfyUIWorkflowRequest(BaseModel):
     name: Optional[str] = None
     nodeMappings: Optional[ComfyUINodeMappings] = None
+    defaultParams: Optional[ComfyUIWorkflowParams] = None
 
 class SetActiveWorkflowRequest(BaseModel):
     workflowId: str
