@@ -28,6 +28,12 @@ class MotionConfig(BaseModel):
     startY: float = 0.0
     endY: float = 0.0
 
+class TTSConfig(BaseModel):
+    """角色 TTS 配置"""
+    voice: str = "zh-CN-XiaoxiaoNeural"
+    rate: float = 1.0
+    pitch: int = 0
+
 class Character(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -37,6 +43,7 @@ class Character(BaseModel):
     referenceImages: List[str] = Field(default_factory=list)
     loraName: Optional[str] = None
     loraWeight: float = 0.8
+    ttsConfig: Optional[TTSConfig] = None
 
 class Storyboard(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
