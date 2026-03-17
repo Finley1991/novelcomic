@@ -1,5 +1,82 @@
 import React, { useEffect, useState } from 'react';
-import { settingsApi, type GlobalSettings } from '../services/api';
+import { settingsApi, comfyuiWorkflowApi, type GlobalSettings, type ComfyUIWorkflow, type ComfyUINodeInfo, type ComfyUINodeMappings } from '../services/api';
+
+function NodeMappingField({
+  label,
+  nodeId,
+  fieldName,
+  nodes,
+  onNodeChange,
+  onFieldChange,
+  extraFields,
+}: {
+  label: string;
+  nodeId?: string;
+  fieldName: string;
+  nodes: ComfyUINodeInfo[];
+  onNodeChange: (id: string) => void;
+  onFieldChange: (field: string) => void;
+  extraFields?: Array<{ label: string; value: string; onChange: (v: string) => void }>;
+}) {
+  const selectedNode = nodes.find((n) => n.id === nodeId);
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <div className="grid grid-cols-2 gap-2">
+        <select
+          value={nodeId || ''}
+          onChange={(e) => onNodeChange(e.target.value)}
+          className="border rounded-md px-3 py-2"
+        >
+          <option value="">-- 选择节点 --</option>
+          {nodes.map((node) => {
+            let displayText = node.classType + ' (' + node.id + ')';
+            if (node.title) {
+              displayText = node.title + ' - ' + displayText;
+            }
+            return (
+              <option key={node.id} value={node.id}>
+                {displayText}
+              </option>
+            );
+          })}
+        </select>
+        <select
+          value={fieldName}
+          onChange={(e) => onFieldChange(e.target.value)}
+          disabled={!selectedNode}
+          className="border rounded-md px-3 py-2 disabled:opacity-50"
+        >
+          <option value="">-- 选择字段 --</option>
+          {selectedNode?.fields.map((field) => (
+            <option key={field} value={field}>
+              {field}
+            </option>
+          ))}
+        </select>
+      </div>
+      {extraFields && selectedNode && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {extraFields.map((ef) => (
+            <div key={ef.label}>
+              <label className="block text-xs text-gray-500 mb-1">{ef.label}</label>
+              <select
+                value={ef.value}
+                onChange={(e) => ef.onChange(e.target.value)}
+                className="w-full border rounded-md px-2 py-1 text-sm"
+              >
+                {selectedNode.fields.map((field) => (
+                  <option key={field} value={field}>{field}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<GlobalSettings>({
@@ -18,8 +95,28 @@ const Settings: React.FC = () => {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  const [workflows, setWorkflows] = useState<ComfyUIWorkflow[]>([]);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [editingWorkflow, setEditingWorkflow] = useState<ComfyUIWorkflow | null>(null);
+  const [workflowName, setWorkflowName] = useState('');
+  const [workflowFile, setWorkflowFile] = useState<File | null>(null);
+  const [workflowJson, setWorkflowJson] = useState<Record<string, any> | null>(null);
+  const [parsedNodes, setParsedNodes] = useState<ComfyUINodeInfo[]>([]);
+  const [nodeMappings, setNodeMappings] = useState<ComfyUINodeMappings>({
+    positivePromptField: 'text',
+    negativePromptField: 'text',
+    widthField: 'width',
+    heightField: 'height',
+    samplerField: 'sampler_name',
+    stepsField: 'steps',
+    cfgField: 'cfg',
+    seedField: 'seed',
+    batchSizeField: 'batch_size',
+  });
+
   useEffect(() => {
     loadSettings();
+    loadWorkflows();
   }, []);
 
   const loadSettings = async () => {
@@ -30,7 +127,7 @@ const Settings: React.FC = () => {
         loadedSettings.llm = {
           provider: 'ollama',
           ollama: loadedSettings.ollama || { apiUrl: '', model: 'llama3', timeout: 120, maxRetries: 2, chunkSize: 4000 },
-          openai: { apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o', timeout: 120, maxRetries: 2, chunkSize: 4000 }
+          openai: { apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o', timeout: 120, maxRetries: 2, chunkSize: 4000, proxy: '' }
         };
       }
       setSettings(loadedSettings);
@@ -38,6 +135,15 @@ const Settings: React.FC = () => {
       console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadWorkflows = async () => {
+    try {
+      const response = await comfyuiWorkflowApi.list();
+      setWorkflows(response.data);
+    } catch (error) {
+      console.error('Failed to load workflows:', error);
     }
   };
 
@@ -58,9 +164,8 @@ const Settings: React.FC = () => {
     setTesting(true);
     setTestResult(null);
     try {
-      // Add timeout for frontend
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const response = await settingsApi.testLLM();
 
@@ -94,6 +199,103 @@ const Settings: React.FC = () => {
     } finally {
       setTesting(false);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setWorkflowFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = JSON.parse(event.target?.result as string);
+          setWorkflowJson(json);
+        } catch (err) {
+          alert('无效的 JSON 文件');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleSetActive = async (workflowId: string) => {
+    try {
+      const response = await comfyuiWorkflowApi.setActive(workflowId);
+      setSettings(response.data);
+      await loadWorkflows();
+    } catch (error) {
+      console.error('Failed to set active workflow:', error);
+      alert('设置激活工作流失败');
+    }
+  };
+
+  const handleEditWorkflow = (workflow: ComfyUIWorkflow) => {
+    setEditingWorkflow(workflow);
+    setWorkflowName(workflow.name);
+    setNodeMappings(workflow.nodeMappings);
+    parseAndSetNodes(workflow);
+    setShowUploadModal(true);
+  };
+
+  const parseAndSetNodes = async (workflow: ComfyUIWorkflow) => {
+    try {
+      const response = await comfyuiWorkflowApi.parse(workflow.id);
+      setParsedNodes(response.data.nodes);
+    } catch (error) {
+      console.error('Failed to parse workflow:', error);
+    }
+  };
+
+  const handleDeleteWorkflow = async (workflowId: string) => {
+    if (!confirm('确定要删除这个工作流吗？')) return;
+    try {
+      await comfyuiWorkflowApi.delete(workflowId);
+      await loadWorkflows();
+      await loadSettings();
+    } catch (error) {
+      console.error('Failed to delete workflow:', error);
+      alert('删除工作流失败');
+    }
+  };
+
+  const handleSaveWorkflow = async () => {
+    try {
+      if (editingWorkflow) {
+        await comfyuiWorkflowApi.update(editingWorkflow.id, {
+          name: workflowName,
+          nodeMappings,
+        });
+      } else if (workflowJson) {
+        const newWorkflow = await comfyuiWorkflowApi.create(workflowName || '未命名工作流', workflowJson);
+        await comfyuiWorkflowApi.update(newWorkflow.data.id, { nodeMappings });
+        await parseAndSetNodes(newWorkflow.data);
+      }
+      await loadWorkflows();
+      setShowUploadModal(false);
+      resetUploadForm();
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+      alert('保存工作流失败');
+    }
+  };
+
+  const resetUploadForm = () => {
+    setEditingWorkflow(null);
+    setWorkflowName('');
+    setWorkflowFile(null);
+    setWorkflowJson(null);
+    setParsedNodes([]);
+    setNodeMappings({
+      positivePromptField: 'text',
+      negativePromptField: 'text',
+      widthField: 'width',
+      heightField: 'height',
+      samplerField: 'sampler_name',
+      stepsField: 'steps',
+      cfgField: 'cfg',
+      seedField: 'seed',
+      batchSizeField: 'batch_size',
+    });
   };
 
   if (loading) {
@@ -243,6 +445,76 @@ const Settings: React.FC = () => {
         )}
 
         <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">ComfyUI 工作流管理</h3>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
+            >
+              上传工作流
+            </button>
+          </div>
+
+          {workflows.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>还没有上传工作流</p>
+              <p className="text-sm mt-2">点击上方按钮上传 ComfyUI 工作流（API 格式）</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {workflows.map((workflow) => (
+                <div
+                  key={workflow.id}
+                  className={`border rounded-lg p-4 ${
+                    settings.comfyui.activeWorkflowId === workflow.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-medium">
+                        {workflow.name}
+                        {settings.comfyui.activeWorkflowId === workflow.id && (
+                          <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
+                            激活中
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500">
+                        创建于: {new Date(workflow.createdAt).toLocaleString('zh-CN')}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {settings.comfyui.activeWorkflowId !== workflow.id && (
+                        <button
+                          onClick={() => handleSetActive(workflow.id)}
+                          className="text-green-600 hover:text-green-800 text-sm"
+                        >
+                          设为激活
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEditWorkflow(workflow)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        onClick={() => handleDeleteWorkflow(workflow.id)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold mb-4">ComfyUI 设置</h3>
           <div className="space-y-4">
             <div>
@@ -283,6 +555,159 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">
+              {editingWorkflow ? '编辑工作流' : '上传工作流'}
+            </h3>
+
+            {!editingWorkflow && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  工作流 JSON 文件
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="workflow-file"
+                  />
+                  <label htmlFor="workflow-file" className="cursor-pointer">
+                    <div className="text-gray-500">
+                      {workflowFile ? workflowFile.name : '点击选择文件，或拖拽到此处'}
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                工作流名称
+              </label>
+              <input
+                type="text"
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="我的工作流"
+              />
+            </div>
+
+            {parsedNodes.length > 0 && (
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="font-medium">节点映射配置</h4>
+
+                <NodeMappingField
+                  label="正向提示词"
+                  nodeId={nodeMappings.positivePromptNodeId}
+                  fieldName={nodeMappings.positivePromptField}
+                  nodes={parsedNodes}
+                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, positivePromptNodeId: id })}
+                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, positivePromptField: field })}
+                />
+
+                <NodeMappingField
+                  label="否定提示词"
+                  nodeId={nodeMappings.negativePromptNodeId}
+                  fieldName={nodeMappings.negativePromptField}
+                  nodes={parsedNodes}
+                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, negativePromptNodeId: id })}
+                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, negativePromptField: field })}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <NodeMappingField
+                    label="宽度"
+                    nodeId={nodeMappings.widthNodeId}
+                    fieldName={nodeMappings.widthField}
+                    nodes={parsedNodes}
+                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, widthNodeId: id })}
+                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, widthField: field })}
+                  />
+                  <NodeMappingField
+                    label="高度"
+                    nodeId={nodeMappings.heightNodeId}
+                    fieldName={nodeMappings.heightField}
+                    nodes={parsedNodes}
+                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, heightNodeId: id })}
+                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, heightField: field })}
+                  />
+                </div>
+
+                <NodeMappingField
+                  label="采样器（包含 steps、cfg、seed）"
+                  nodeId={nodeMappings.samplerNodeId}
+                  fieldName={nodeMappings.samplerField}
+                  nodes={parsedNodes}
+                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, samplerNodeId: id })}
+                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, samplerField: field })}
+                  extraFields={[
+                    { label: 'Steps', value: nodeMappings.stepsField, onChange: (v) => setNodeMappings({ ...nodeMappings, stepsField: v }) },
+                    { label: 'CFG', value: nodeMappings.cfgField, onChange: (v) => setNodeMappings({ ...nodeMappings, cfgField: v }) },
+                    { label: 'Seed', value: nodeMappings.seedField, onChange: (v) => setNodeMappings({ ...nodeMappings, seedField: v }) },
+                  ]}
+                />
+
+                <NodeMappingField
+                  label="批次大小"
+                  nodeId={nodeMappings.batchNodeId}
+                  fieldName={nodeMappings.batchSizeField}
+                  nodes={parsedNodes}
+                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, batchNodeId: id })}
+                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, batchSizeField: field })}
+                />
+              </div>
+            )}
+
+            {!editingWorkflow && workflowJson && parsedNodes.length === 0 && (
+              <div className="border-t pt-4 mt-4">
+                <button
+                  onClick={async () => {
+                    if (editingWorkflow) {
+                      parseAndSetNodes(editingWorkflow);
+                    } else if (workflowJson) {
+                      try {
+                        const newWorkflow = await comfyuiWorkflowApi.create(workflowName || '未命名工作流', workflowJson);
+                        setEditingWorkflow(newWorkflow.data);
+                        parseAndSetNodes(newWorkflow.data);
+                      } catch (err) {
+                        console.error('Failed to create workflow:', err);
+                      }
+                    }
+                  }}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                >
+                  解析工作流节点
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  resetUploadForm();
+                }}
+                className="px-4 py-2 border rounded-md hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveWorkflow}
+                disabled={!workflowName || (!editingWorkflow && !workflowJson)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
