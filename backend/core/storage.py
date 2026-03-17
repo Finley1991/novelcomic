@@ -1,11 +1,14 @@
 import json
 import shutil
+import logging
 from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 from config import settings
-from models.schemas import Project, GlobalSettings
+from models.schemas import Project, GlobalSettings, ComfyUIWorkflow
 
 class StorageManager:
     def __init__(self):
@@ -87,6 +90,45 @@ class StorageManager:
         proj_dir = self._get_project_dir(project_id)
         if proj_dir.exists():
             shutil.rmtree(proj_dir)
+            return True
+        return False
+
+    def _get_workflows_dir(self) -> Path:
+        dir_path = self.data_dir / "comfyui_workflows"
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
+
+    def list_comfyui_workflows(self) -> List[ComfyUIWorkflow]:
+        workflows = []
+        workflows_dir = self._get_workflows_dir()
+        for file_path in workflows_dir.glob("*.json"):
+            try:
+                data = json.loads(file_path.read_text(encoding="utf-8"))
+                workflows.append(ComfyUIWorkflow(**data))
+            except Exception as e:
+                logger.error(f"Failed to load workflow {file_path}: {e}")
+        workflows.sort(key=lambda w: w.createdAt, reverse=True)
+        return workflows
+
+    def get_comfyui_workflow(self, workflow_id: str) -> Optional[ComfyUIWorkflow]:
+        file_path = self._get_workflows_dir() / f"{workflow_id}.json"
+        if not file_path.exists():
+            return None
+        try:
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+            return ComfyUIWorkflow(**data)
+        except Exception as e:
+            logger.error(f"Failed to load workflow {workflow_id}: {e}")
+            return None
+
+    def save_comfyui_workflow(self, workflow: ComfyUIWorkflow) -> None:
+        file_path = self._get_workflows_dir() / f"{workflow.id}.json"
+        file_path.write_text(workflow.model_dump_json(indent=2), encoding="utf-8")
+
+    def delete_comfyui_workflow(self, workflow_id: str) -> bool:
+        file_path = self._get_workflows_dir() / f"{workflow_id}.json"
+        if file_path.exists():
+            file_path.unlink()
             return True
         return False
 
