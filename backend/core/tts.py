@@ -96,9 +96,28 @@ class TTSClient:
 </speak>"""
 
     @async_retry(retries=settings.tts_max_retries, delay=1.0, backoff=2.0)
-    async def synthesize(self, text: str, voice: Optional[str] = None, rate: Optional[float] = None, pitch: Optional[int] = None) -> tuple[bytes, float]:
+    async def synthesize(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        rate: Optional[float] = None,
+        pitch: Optional[int] = None,
+        tts_config: Optional[Any] = None  # Use Any for backwards compatibility
+    ) -> tuple[bytes, float]:
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
+
+        # 如果提供了 tts_config，优先使用
+        if tts_config:
+            # Handle both dict and object
+            if hasattr(tts_config, 'voice'):
+                voice = voice or tts_config.voice
+                rate = rate or tts_config.rate
+                pitch = pitch or tts_config.pitch
+            elif isinstance(tts_config, dict):
+                voice = voice or tts_config.get('voice')
+                rate = rate or tts_config.get('rate')
+                pitch = pitch or tts_config.get('pitch')
 
         access_token = await self._get_access_token()
         ssml = self._build_ssml(text, voice, rate, pitch)
