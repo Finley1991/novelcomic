@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { projectApi, type Project } from '../services/api';
+import { projectApi } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();

@@ -7,8 +7,6 @@ import {
   generationApi,
   exportApi,
   type Project,
-  type Character,
-  type Storyboard,
 } from '../services/api';
 
 const ProjectEditor: React.FC = () => {
