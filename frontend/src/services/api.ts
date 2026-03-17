@@ -16,6 +16,7 @@ export interface Character {
   referenceImages: string[];
   loraName?: string;
   loraWeight: number;
+  ttsConfig?: TTSConfig;
 }
 
 export interface MotionConfig {
@@ -26,6 +27,12 @@ export interface MotionConfig {
   endX: number;
   startY: number;
   endY: number;
+}
+
+export interface TTSConfig {
+  voice: string;
+  rate: number;
+  pitch: number;
 }
 
 export interface Storyboard {
