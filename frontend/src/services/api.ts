@@ -54,6 +54,26 @@ export interface Storyboard {
   motion: MotionConfig;
 }
 
+export type PromptType = 'character_extraction' | 'storyboard_split' | 'image_prompt';
+
+export interface PromptVariable {
+  name: string;
+  description: string;
+  example: string;
+}
+
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  description: string;
+  type: PromptType;
+  systemPrompt: string;
+  userPrompt: string;
+  isPreset: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -63,6 +83,8 @@ export interface Project {
   sourceText: string;
   stylePrompt: string;
   negativePrompt: string;
+  useCustomPrompts: boolean;
+  projectPromptTemplates: Record<PromptType, string>;
   characters: Character[];
   storyboards: Storyboard[];
 }
@@ -164,6 +186,7 @@ export interface JianyingSettings {
 }
 
 export interface GlobalSettings {
+  defaultPromptTemplates: Record<PromptType, string>;
   comfyui: ComfyUISettings;
   llm: LLMSettings;
   ollama: OllamaSettings;
@@ -258,6 +281,23 @@ export const comfyuiWorkflowApi = {
   delete: (id: string) => api.delete(`/comfyui/workflows/${id}`),
   parse: (id: string) => api.post<{ nodes: ComfyUINodeInfo[] }>(`/comfyui/workflows/${id}/parse`),
   setActive: (workflowId: string) => api.put<GlobalSettings>('/comfyui/active-workflow', { workflowId }),
+};
+
+export const promptApi = {
+  listTemplates: (type?: PromptType) => api.get<PromptTemplate[]>(
+    `/prompts/templates${type ? `?type=${type}` : ''}`
+  ),
+  getTemplate: (id: string) => api.get<PromptTemplate>(`/prompts/templates/${id}`),
+  createTemplate: (data: Partial<PromptTemplate>) => api.post<PromptTemplate>('/prompts/templates', data),
+  updateTemplate: (id: string, data: Partial<PromptTemplate>) => api.put<PromptTemplate>(`/prompts/templates/${id}`, data),
+  deleteTemplate: (id: string, cascade?: boolean) => api.delete(
+    `/prompts/templates/${id}${cascade ? '?cascade=true' : ''}`
+  ),
+  duplicateTemplate: (id: string, newName: string) => api.post<PromptTemplate>(
+    `/prompts/templates/${id}/duplicate`,
+    { newName }
+  ),
+  getVariables: (type: PromptType) => api.get<PromptVariable[]>(`/prompts/variables?type=${type}`),
 };
 
 export default api;

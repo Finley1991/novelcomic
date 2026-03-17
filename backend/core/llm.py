@@ -39,15 +39,39 @@ class LLMClient:
                 model=ollama_settings.model if ollama_settings else None
             )
 
-    async def extract_characters(self, novel_text: str) -> List[Dict[str, Any]]:
-        return await self._client.extract_characters(novel_text)
+    async def extract_characters(
+        self,
+        novel_text: str,
+        project: Optional[Any] = None,
+        global_settings: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        return await self._client.extract_characters(novel_text, project, global_settings)
 
-    async def split_storyboard(self, novel_text: str, characters: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        return await self._client.split_storyboard(novel_text, characters)
+    async def split_storyboard(
+        self,
+        novel_text: str,
+        characters: List[Dict[str, Any]] = None,
+        project: Optional[Any] = None,
+        global_settings: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        return await self._client.split_storyboard(novel_text, characters, project, global_settings)
 
-    async def generate_image_prompt(self, scene_description: str, characters: List[Dict[str, Any]] = None, style_prompt: str = "") -> str:
+    async def generate_image_prompt(
+        self,
+        scene_description: str,
+        characters: List[Dict[str, Any]] = None,
+        style_prompt: str = "",
+        project: Optional[Any] = None,
+        global_settings: Optional[Any] = None
+    ) -> str:
         if hasattr(self._client, 'generate_image_prompt'):
-            return await self._client.generate_image_prompt(scene_description, characters, style_prompt)
+            return await self._client.generate_image_prompt(
+                scene_description,
+                characters,
+                style_prompt,
+                project,
+                global_settings
+            )
         return scene_description
 
     async def test_connection(self) -> dict:

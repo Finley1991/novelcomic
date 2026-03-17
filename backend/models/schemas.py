@@ -13,6 +13,11 @@ class MotionType(str, Enum):
     ZOOM_IN = "zoom_in"
     ZOOM_OUT = "zoom_out"
 
+class PromptType(str, Enum):
+    CHARACTER_EXTRACTION = "character_extraction"
+    STORYBOARD_SPLIT = "storyboard_split"
+    IMAGE_PROMPT = "image_prompt"
+
 class GenerationStatus(str, Enum):
     PENDING = "pending"
     GENERATING = "generating"
@@ -27,6 +32,22 @@ class MotionConfig(BaseModel):
     endX: float = 0.0
     startY: float = 0.0
     endY: float = 0.0
+
+class PromptVariable(BaseModel):
+    name: str
+    description: str
+    example: str
+
+class PromptTemplate(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    type: PromptType
+    systemPrompt: str = ""
+    userPrompt: str = ""
+    isPreset: bool = False
+    createdAt: datetime = Field(default_factory=datetime.now)
+    updatedAt: datetime = Field(default_factory=datetime.now)
 
 class TTSConfig(BaseModel):
     """角色 TTS 配置"""
@@ -79,6 +100,8 @@ class Project(BaseModel):
     sourceText: str = ""
     stylePrompt: str = ""
     negativePrompt: str = "bad anatomy, bad hands, blurry"
+    useCustomPrompts: bool = False
+    projectPromptTemplates: Dict[PromptType, str] = Field(default_factory=dict)
     generationProgress: GenerationProgress = Field(default_factory=GenerationProgress)
     characters: List[Character] = Field(default_factory=list)
     storyboards: List[Storyboard] = Field(default_factory=list)
@@ -192,6 +215,7 @@ class JianyingSettings(BaseModel):
     canvasRatio: str = "16:9"
 
 class GlobalSettings(BaseModel):
+    defaultPromptTemplates: Dict[PromptType, str] = Field(default_factory=dict)
     comfyui: ComfyUISettings = Field(default_factory=ComfyUISettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)  # Keep for backwards compatibility

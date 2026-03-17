@@ -6,6 +6,7 @@ import './index.css';
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const ProjectEditor = React.lazy(() => import('./pages/ProjectEditor'));
 const Settings = React.lazy(() => import('./pages/Settings'));
+const PromptManager = React.lazy(() => import('./pages/PromptManager'));
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
               </div>
               <div className="flex items-center space-x-4">
                 <a href="/" className="text-gray-600 hover:text-gray-900">项目</a>
+                <a href="/prompts" className="text-gray-600 hover:text-gray-900">Prompt 模板</a>
                 <a href="/settings" className="text-gray-600 hover:text-gray-900">设置</a>
               </div>
             </div>
@@ -30,6 +32,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/project/:id" element={<ProjectEditor />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/prompts" element={<PromptManager />} />
             </Routes>
           </React.Suspense>
         </main>
