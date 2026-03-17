@@ -76,11 +76,51 @@ class Project(BaseModel):
     characters: List[Character] = Field(default_factory=list)
     storyboards: List[Storyboard] = Field(default_factory=list)
 
+class ComfyUINodeMappings(BaseModel):
+    # 提示词相关
+    positivePromptNodeId: Optional[str] = None
+    positivePromptField: str = "text"
+
+    negativePromptNodeId: Optional[str] = None
+    negativePromptField: str = "text"
+
+    # 尺寸相关
+    widthNodeId: Optional[str] = None
+    widthField: str = "width"
+
+    heightNodeId: Optional[str] = None
+    heightField: str = "height"
+
+    # 采样相关
+    samplerNodeId: Optional[str] = None
+    samplerField: str = "sampler_name"
+    stepsField: str = "steps"
+    cfgField: str = "cfg"
+    seedField: str = "seed"
+
+    # 批次相关
+    batchNodeId: Optional[str] = None
+    batchSizeField: str = "batch_size"
+
+class ComfyUIWorkflow(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    workflowJson: Dict[str, Any]
+    nodeMappings: ComfyUINodeMappings = Field(default_factory=ComfyUINodeMappings)
+    createdAt: datetime = Field(default_factory=datetime.now)
+
+class ComfyUINodeInfo(BaseModel):
+    id: str
+    classType: str
+    title: Optional[str]
+    fields: List[str]
+
 class ComfyUISettings(BaseModel):
     apiUrl: str = "http://8.222.174.34:8188"
     timeout: int = 300
     maxRetries: int = 3
     concurrentLimit: int = 3
+    activeWorkflowId: Optional[str] = None
 
 class LLMProvider(str, Enum):
     OLLAMA = "ollama"
@@ -130,6 +170,17 @@ class GlobalSettings(BaseModel):
     jianying: JianyingSettings = Field(default_factory=JianyingSettings)
 
 # Request schemas
+class CreateComfyUIWorkflowRequest(BaseModel):
+    name: str
+    workflowJson: Dict[str, Any]
+
+class UpdateComfyUIWorkflowRequest(BaseModel):
+    name: Optional[str] = None
+    nodeMappings: Optional[ComfyUINodeMappings] = None
+
+class SetActiveWorkflowRequest(BaseModel):
+    workflowId: str
+
 class CreateProjectRequest(BaseModel):
     name: str
     sourceText: Optional[str] = None
