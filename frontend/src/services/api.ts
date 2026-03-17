@@ -85,11 +85,25 @@ export interface ComfyUINodeMappings {
   batchSizeField: string;
 }
 
+export interface ComfyUIWorkflowParams {
+  width: number;
+  height: number;
+  steps: number;
+  cfg: number;
+  samplerName?: string | null;
+  seed: number;
+  batchSize: number;
+  positivePromptPrefix: string;
+  positivePromptSuffix: string;
+  negativePromptOverride?: string | null;
+}
+
 export interface ComfyUIWorkflow {
   id: string;
   name: string;
   workflowJson: Record<string, any>;
   nodeMappings: ComfyUINodeMappings;
+  defaultParams: ComfyUIWorkflowParams;
   createdAt: string;
 }
 
@@ -231,7 +245,7 @@ export const comfyuiWorkflowApi = {
   create: (name: string, workflowJson: Record<string, any>) =>
     api.post<ComfyUIWorkflow>('/comfyui/workflows', { name, workflowJson }),
   get: (id: string) => api.get<ComfyUIWorkflow>(`/comfyui/workflows/${id}`),
-  update: (id: string, data: { name?: string; nodeMappings?: Partial<ComfyUINodeMappings> }) =>
+  update: (id: string, data: { name?: string; nodeMappings?: Partial<ComfyUINodeMappings>; defaultParams?: Partial<ComfyUIWorkflowParams> }) =>
     api.put<ComfyUIWorkflow>(`/comfyui/workflows/${id}`, data),
   delete: (id: string) => api.delete(`/comfyui/workflows/${id}`),
   parse: (id: string) => api.post<{ nodes: ComfyUINodeInfo[] }>(`/comfyui/workflows/${id}/parse`),
