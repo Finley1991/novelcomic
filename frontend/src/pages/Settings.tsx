@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { settingsApi, comfyuiWorkflowApi, type GlobalSettings, type ComfyUIWorkflow, type ComfyUINodeInfo, type ComfyUINodeMappings } from '../services/api';
+import { settingsApi, comfyuiWorkflowApi, type GlobalSettings, type ComfyUIWorkflow, type ComfyUINodeInfo, type ComfyUINodeMappings, type ComfyUIWorkflowParams } from '../services/api';
 
 function NodeMappingField({
   label,
@@ -112,6 +112,18 @@ const Settings: React.FC = () => {
     cfgField: 'cfg',
     seedField: 'seed',
     batchSizeField: 'batch_size',
+  });
+  const [defaultParams, setDefaultParams] = useState<ComfyUIWorkflowParams>({
+    width: 1280,
+    height: 960,
+    steps: 30,
+    cfg: 7.0,
+    samplerName: null,
+    seed: 0,
+    batchSize: 1,
+    positivePromptPrefix: '',
+    positivePromptSuffix: '',
+    negativePromptOverride: null,
   });
 
   useEffect(() => {
@@ -233,6 +245,18 @@ const Settings: React.FC = () => {
     setEditingWorkflow(workflow);
     setWorkflowName(workflow.name);
     setNodeMappings(workflow.nodeMappings);
+    setDefaultParams(workflow.defaultParams || {
+      width: 1280,
+      height: 960,
+      steps: 30,
+      cfg: 7.0,
+      samplerName: null,
+      seed: 0,
+      batchSize: 1,
+      positivePromptPrefix: '',
+      positivePromptSuffix: '',
+      negativePromptOverride: null,
+    });
     parseAndSetNodes(workflow);
     setShowUploadModal(true);
   };
@@ -264,10 +288,11 @@ const Settings: React.FC = () => {
         await comfyuiWorkflowApi.update(editingWorkflow.id, {
           name: workflowName,
           nodeMappings,
+          defaultParams,
         });
       } else if (workflowJson) {
         const newWorkflow = await comfyuiWorkflowApi.create(workflowName || '未命名工作流', workflowJson);
-        await comfyuiWorkflowApi.update(newWorkflow.data.id, { nodeMappings });
+        await comfyuiWorkflowApi.update(newWorkflow.data.id, { nodeMappings, defaultParams });
         await parseAndSetNodes(newWorkflow.data);
       }
       await loadWorkflows();
@@ -295,6 +320,18 @@ const Settings: React.FC = () => {
       cfgField: 'cfg',
       seedField: 'seed',
       batchSizeField: 'batch_size',
+    });
+    setDefaultParams({
+      width: 1280,
+      height: 960,
+      steps: 30,
+      cfg: 7.0,
+      samplerName: null,
+      seed: 0,
+      batchSize: 1,
+      positivePromptPrefix: '',
+      positivePromptSuffix: '',
+      negativePromptOverride: null,
     });
   };
 
@@ -599,69 +636,186 @@ const Settings: React.FC = () => {
             </div>
 
             {parsedNodes.length > 0 && (
-              <div className="space-y-4 border-t pt-4">
-                <h4 className="font-medium">节点映射配置</h4>
+              <>
+                <div className="space-y-4 border-t pt-4">
+                  <h4 className="font-medium">节点映射配置</h4>
 
-                <NodeMappingField
-                  label="正向提示词"
-                  nodeId={nodeMappings.positivePromptNodeId}
-                  fieldName={nodeMappings.positivePromptField}
-                  nodes={parsedNodes}
-                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, positivePromptNodeId: id })}
-                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, positivePromptField: field })}
-                />
-
-                <NodeMappingField
-                  label="否定提示词"
-                  nodeId={nodeMappings.negativePromptNodeId}
-                  fieldName={nodeMappings.negativePromptField}
-                  nodes={parsedNodes}
-                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, negativePromptNodeId: id })}
-                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, negativePromptField: field })}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
                   <NodeMappingField
-                    label="宽度"
-                    nodeId={nodeMappings.widthNodeId}
-                    fieldName={nodeMappings.widthField}
+                    label="正向提示词"
+                    nodeId={nodeMappings.positivePromptNodeId}
+                    fieldName={nodeMappings.positivePromptField}
                     nodes={parsedNodes}
-                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, widthNodeId: id })}
-                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, widthField: field })}
+                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, positivePromptNodeId: id })}
+                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, positivePromptField: field })}
                   />
+
                   <NodeMappingField
-                    label="高度"
-                    nodeId={nodeMappings.heightNodeId}
-                    fieldName={nodeMappings.heightField}
+                    label="否定提示词"
+                    nodeId={nodeMappings.negativePromptNodeId}
+                    fieldName={nodeMappings.negativePromptField}
                     nodes={parsedNodes}
-                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, heightNodeId: id })}
-                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, heightField: field })}
+                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, negativePromptNodeId: id })}
+                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, negativePromptField: field })}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <NodeMappingField
+                      label="宽度"
+                      nodeId={nodeMappings.widthNodeId}
+                      fieldName={nodeMappings.widthField}
+                      nodes={parsedNodes}
+                      onNodeChange={(id) => setNodeMappings({ ...nodeMappings, widthNodeId: id })}
+                      onFieldChange={(field) => setNodeMappings({ ...nodeMappings, widthField: field })}
+                    />
+                    <NodeMappingField
+                      label="高度"
+                      nodeId={nodeMappings.heightNodeId}
+                      fieldName={nodeMappings.heightField}
+                      nodes={parsedNodes}
+                      onNodeChange={(id) => setNodeMappings({ ...nodeMappings, heightNodeId: id })}
+                      onFieldChange={(field) => setNodeMappings({ ...nodeMappings, heightField: field })}
+                    />
+                  </div>
+
+                  <NodeMappingField
+                    label="采样器（包含 steps、cfg、seed）"
+                    nodeId={nodeMappings.samplerNodeId}
+                    fieldName={nodeMappings.samplerField}
+                    nodes={parsedNodes}
+                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, samplerNodeId: id })}
+                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, samplerField: field })}
+                    extraFields={[
+                      { label: 'Steps', value: nodeMappings.stepsField, onChange: (v) => setNodeMappings({ ...nodeMappings, stepsField: v }) },
+                      { label: 'CFG', value: nodeMappings.cfgField, onChange: (v) => setNodeMappings({ ...nodeMappings, cfgField: v }) },
+                      { label: 'Seed', value: nodeMappings.seedField, onChange: (v) => setNodeMappings({ ...nodeMappings, seedField: v }) },
+                    ]}
+                  />
+
+                  <NodeMappingField
+                    label="批次大小"
+                    nodeId={nodeMappings.batchNodeId}
+                    fieldName={nodeMappings.batchSizeField}
+                    nodes={parsedNodes}
+                    onNodeChange={(id) => setNodeMappings({ ...nodeMappings, batchNodeId: id })}
+                    onFieldChange={(field) => setNodeMappings({ ...nodeMappings, batchSizeField: field })}
                   />
                 </div>
 
-                <NodeMappingField
-                  label="采样器（包含 steps、cfg、seed）"
-                  nodeId={nodeMappings.samplerNodeId}
-                  fieldName={nodeMappings.samplerField}
-                  nodes={parsedNodes}
-                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, samplerNodeId: id })}
-                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, samplerField: field })}
-                  extraFields={[
-                    { label: 'Steps', value: nodeMappings.stepsField, onChange: (v) => setNodeMappings({ ...nodeMappings, stepsField: v }) },
-                    { label: 'CFG', value: nodeMappings.cfgField, onChange: (v) => setNodeMappings({ ...nodeMappings, cfgField: v }) },
-                    { label: 'Seed', value: nodeMappings.seedField, onChange: (v) => setNodeMappings({ ...nodeMappings, seedField: v }) },
-                  ]}
-                />
+                <div className="space-y-4 border-t pt-4 mt-4">
+                  <h4 className="font-medium">默认参数配置</h4>
 
-                <NodeMappingField
-                  label="批次大小"
-                  nodeId={nodeMappings.batchNodeId}
-                  fieldName={nodeMappings.batchSizeField}
-                  nodes={parsedNodes}
-                  onNodeChange={(id) => setNodeMappings({ ...nodeMappings, batchNodeId: id })}
-                  onFieldChange={(field) => setNodeMappings({ ...nodeMappings, batchSizeField: field })}
-                />
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">宽度</label>
+                      <input
+                        type="number"
+                        value={defaultParams.width}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, width: parseInt(e.target.value) || 1280 })}
+                        className="w-full border rounded-md px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">高度</label>
+                      <input
+                        type="number"
+                        value={defaultParams.height}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, height: parseInt(e.target.value) || 960 })}
+                        className="w-full border rounded-md px-3 py-2"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Steps</label>
+                      <input
+                        type="number"
+                        value={defaultParams.steps}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, steps: parseInt(e.target.value) || 30 })}
+                        className="w-full border rounded-md px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">CFG</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={defaultParams.cfg}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, cfg: parseFloat(e.target.value) || 7.0 })}
+                        className="w-full border rounded-md px-3 py-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Batch Size</label>
+                      <input
+                        type="number"
+                        value={defaultParams.batchSize}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, batchSize: parseInt(e.target.value) || 1 })}
+                        className="w-full border rounded-md px-3 py-2"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Sampler</label>
+                      <select
+                        value={defaultParams.samplerName || ''}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, samplerName: e.target.value || null })}
+                        className="w-full border rounded-md px-3 py-2"
+                      >
+                        <option value="">使用工作流默认</option>
+                        <option value="euler">euler</option>
+                        <option value="euler_a">euler_a</option>
+                        <option value="dpmpp_2m_sde_karras">dpmpp_2m_sde_karras</option>
+                        <option value="dpmpp_sde_karras">dpmpp_sde_karras</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Seed <span className="text-gray-400">(0=随机)</span></label>
+                      <input
+                        type="number"
+                        value={defaultParams.seed}
+                        onChange={(e) => setDefaultParams({ ...defaultParams, seed: parseInt(e.target.value) || 0 })}
+                        className="w-full border rounded-md px-3 py-2"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">正向提示词前缀</label>
+                    <input
+                      type="text"
+                      value={defaultParams.positivePromptPrefix}
+                      onChange={(e) => setDefaultParams({ ...defaultParams, positivePromptPrefix: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2"
+                      placeholder="例如: masterpiece, best quality, "
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">正向提示词后缀</label>
+                    <input
+                      type="text"
+                      value={defaultParams.positivePromptSuffix}
+                      onChange={(e) => setDefaultParams({ ...defaultParams, positivePromptSuffix: e.target.value })}
+                      className="w-full border rounded-md px-3 py-2"
+                      placeholder="例如: , cinematic lighting"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">否定提示词覆盖 <span className="text-gray-400">(留空表示不覆盖)</span></label>
+                    <input
+                      type="text"
+                      value={defaultParams.negativePromptOverride || ''}
+                      onChange={(e) => setDefaultParams({ ...defaultParams, negativePromptOverride: e.target.value || null })}
+                      className="w-full border rounded-md px-3 py-2"
+                      placeholder="例如: bad anatomy, bad hands"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             {!editingWorkflow && workflowJson && parsedNodes.length === 0 && (
