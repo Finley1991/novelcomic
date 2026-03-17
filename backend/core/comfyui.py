@@ -95,14 +95,6 @@ class ComfyUIClient:
             if "inputs" in node:
                 node["inputs"][mappings.heightField] = height
 
-        if mappings.samplerNodeId:
-            node = workflow_copy.get(mappings.samplerNodeId, {})
-            if "inputs" in node:
-                node["inputs"][mappings.samplerField] = sampler_name
-                node["inputs"][mappings.stepsField] = steps
-                node["inputs"][mappings.cfgField] = cfg
-                node["inputs"][mappings.seedField] = seed
-
         if mappings.batchNodeId:
             node = workflow_copy.get(mappings.batchNodeId, {})
             if "inputs" in node:

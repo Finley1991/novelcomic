@@ -11,7 +11,7 @@ from models.schemas import (
     GenerationStatus, GenerationStatusResponse
 )
 from core.storage import storage
-from core.ollama import OllamaClient
+from core.llm import LLMClient
 from core.comfyui import ComfyUIClient
 from core.tts import TTSClient
 from config import settings
@@ -52,9 +52,10 @@ async def generate_single_image(project_id: str, sb_id: str):
             characters = [char_map[cid] for cid in storyboard.characterIds if cid in char_map]
 
             if not storyboard.imagePrompt:
-                ollama_client = OllamaClient()
+                settings_obj = storage.load_global_settings()
+                llm_client = LLMClient(settings_obj)
                 char_dicts = [c.model_dump() for c in characters]
-                storyboard.imagePrompt = await ollama_client.generate_image_prompt(
+                storyboard.imagePrompt = await llm_client.generate_image_prompt(
                     storyboard.sceneDescription,
                     char_dicts,
                     project.stylePrompt
@@ -167,8 +168,9 @@ async def extract_characters(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    ollama_client = OllamaClient()
-    char_dicts = await ollama_client.extract_characters(project.sourceText)
+    settings_obj = storage.load_global_settings()
+    llm_client = LLMClient(settings_obj)
+    char_dicts = await llm_client.extract_characters(project.sourceText)
 
     from models.schemas import Character
     for char_dict in char_dicts:
@@ -188,9 +190,10 @@ async def split_storyboard(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    ollama_client = OllamaClient()
+    settings_obj = storage.load_global_settings()
+    llm_client = LLMClient(settings_obj)
     char_dicts = [c.model_dump() for c in project.characters]
-    sb_dicts = await ollama_client.split_storyboard(project.sourceText, char_dicts)
+    sb_dicts = await llm_client.split_storyboard(project.sourceText, char_dicts)
 
     from models.schemas import Storyboard
     char_map = {c.name: c.id for c in project.characters}

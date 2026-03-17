@@ -46,9 +46,9 @@ npm run dev
 
 ### 访问应用
 
-- 前端: http://localhost:5173
-- 后端 API: http://localhost:8000
-- API 文档: http://localhost:8000/docs
+- 前端: http://localhost:5175
+- 后端 API: http://localhost:8001
+- API 文档: http://localhost:8001/docs
 
 ## 配置说明
 
