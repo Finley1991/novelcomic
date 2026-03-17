@@ -16,6 +16,7 @@ const ProjectEditor: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
+  const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -178,8 +179,112 @@ const ProjectEditor: React.FC = () => {
             <div className="space-y-4">
               {project.characters.map((char) => (
                 <div key={char.id} className="border rounded-lg p-4">
-                  <h4 className="font-semibold">{char.name}</h4>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold">{char.name}</h4>
+                    <button
+                      onClick={() => setEditingCharacterId(
+                        editingCharacterId === char.id ? null : char.id
+                      )}
+                      className="text-blue-500 text-sm hover:text-blue-600"
+                    >
+                      {editingCharacterId === char.id ? '收起' : '编辑声音'}
+                    </button>
+                  </div>
                   <p className="text-sm text-gray-600">{char.description}</p>
+
+                  {editingCharacterId === char.id && (
+                    <div className="mt-4 pt-4 border-t space-y-4">
+                      <h5 className="font-medium text-sm">声音配置</h5>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">声音</label>
+                        <select
+                          value={char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural'}
+                          onChange={(e) => {
+                            const newTtsConfig = {
+                              voice: e.target.value,
+                              rate: char.ttsConfig?.rate || 1.0,
+                              pitch: char.ttsConfig?.pitch || 0
+                            };
+                            setProject({
+                              ...project,
+                              characters: project.characters.map(c =>
+                                c.id === char.id
+                                  ? { ...c, ttsConfig: newTtsConfig }
+                                  : c
+                              )
+                            });
+                          }}
+                          className="w-full border rounded-md px-3 py-2"
+                        >
+                          <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural (女声)</option>
+                          <option value="zh-CN-YunxiNeural">zh-CN-YunxiNeural (男声)</option>
+                          <option value="zh-CN-YunyangNeural">zh-CN-YunyangNeural (男声)</option>
+                          <option value="zh-CN-XiaoyouNeural">zh-CN-XiaoyouNeural (童声)</option>
+                          <option value="zh-CN-XiaohanNeural">zh-CN-XiaohanNeural (女声)</option>
+                          <option value="zh-CN-YunjianNeural">zh-CN-YunjianNeural (男声)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          语速: {(char.ttsConfig?.rate || 1.0).toFixed(1)}x
+                        </label>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="2.0"
+                          step="0.1"
+                          value={char.ttsConfig?.rate || 1.0}
+                          onChange={(e) => {
+                            const newTtsConfig = {
+                              voice: char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural',
+                              rate: parseFloat(e.target.value),
+                              pitch: char.ttsConfig?.pitch || 0
+                            };
+                            setProject({
+                              ...project,
+                              characters: project.characters.map(c =>
+                                c.id === char.id
+                                  ? { ...c, ttsConfig: newTtsConfig }
+                                  : c
+                              )
+                            });
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          音调: {char.ttsConfig?.pitch || 0}Hz
+                        </label>
+                        <input
+                          type="range"
+                          min="-100"
+                          max="100"
+                          step="1"
+                          value={char.ttsConfig?.pitch || 0}
+                          onChange={(e) => {
+                            const newTtsConfig = {
+                              voice: char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural',
+                              rate: char.ttsConfig?.rate || 1.0,
+                              pitch: parseInt(e.target.value)
+                            };
+                            setProject({
+                              ...project,
+                              characters: project.characters.map(c =>
+                                c.id === char.id
+                                  ? { ...c, ttsConfig: newTtsConfig }
+                                  : c
+                              )
+                            });
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {project.characters.length === 0 && (
