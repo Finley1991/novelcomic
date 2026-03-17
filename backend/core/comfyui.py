@@ -7,7 +7,7 @@ import logging
 
 from config import settings
 from core.retry import async_retry
-from models.schemas import ComfyUINodeMappings
+from models.schemas import ComfyUINodeMappings, ComfyUIWorkflowParams
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +71,28 @@ class ComfyUIClient:
         cfg: float = 7.0,
         sampler_name: str = "dpmpp_2m_sde_karras",
         seed: int = 0,
-        batch_size: int = 1
+        batch_size: int = 1,
+        params: Optional[ComfyUIWorkflowParams] = None
     ) -> Dict[str, Any]:
         workflow_copy = deepcopy(workflow)
+
+        # Apply workflow default parameters if available
+        if params:
+            width = params.width
+            height = params.height
+            steps = params.steps
+            cfg = params.cfg
+            if params.samplerName is not None:
+                sampler_name = params.samplerName
+            seed = params.seed
+            batch_size = params.batchSize
+
+            # Apply prompt prefix/suffix
+            prompt = f"{params.positivePromptPrefix}{prompt}{params.positivePromptSuffix}"
+
+            # Apply negative prompt override if set
+            if params.negativePromptOverride is not None:
+                negative_prompt = params.negativePromptOverride
 
         if mappings.positivePromptNodeId:
             node = workflow_copy.get(mappings.positivePromptNodeId, {})
@@ -137,7 +156,8 @@ class ComfyUIClient:
             cfg=cfg,
             sampler_name=sampler_name,
             seed=0,
-            batch_size=1
+            batch_size=1,
+            params=workflow.defaultParams
         )
 
         prompt_id = await self._queue_prompt(workflow_json)
