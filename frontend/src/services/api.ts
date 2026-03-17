@@ -60,11 +60,45 @@ export interface Project {
   storyboards: Storyboard[];
 }
 
+export interface ComfyUINodeInfo {
+  id: string;
+  classType: string;
+  title?: string;
+  fields: string[];
+}
+
+export interface ComfyUINodeMappings {
+  positivePromptNodeId?: string;
+  positivePromptField: string;
+  negativePromptNodeId?: string;
+  negativePromptField: string;
+  widthNodeId?: string;
+  widthField: string;
+  heightNodeId?: string;
+  heightField: string;
+  samplerNodeId?: string;
+  samplerField: string;
+  stepsField: string;
+  cfgField: string;
+  seedField: string;
+  batchNodeId?: string;
+  batchSizeField: string;
+}
+
+export interface ComfyUIWorkflow {
+  id: string;
+  name: string;
+  workflowJson: Record<string, any>;
+  nodeMappings: ComfyUINodeMappings;
+  createdAt: string;
+}
+
 export interface ComfyUISettings {
   apiUrl: string;
   timeout: number;
   maxRetries: number;
   concurrentLimit: number;
+  activeWorkflowId?: string;
 }
 
 export interface OllamaSettings {
@@ -190,6 +224,18 @@ export const settingsApi = {
   update: (settings: GlobalSettings) =>
     api.put<GlobalSettings>('/settings', settings),
   testLLM: () => api.post('/settings/llm/test'),
+};
+
+export const comfyuiWorkflowApi = {
+  list: () => api.get<ComfyUIWorkflow[]>('/comfyui/workflows'),
+  create: (name: string, workflowJson: Record<string, any>) =>
+    api.post<ComfyUIWorkflow>('/comfyui/workflows', { name, workflowJson }),
+  get: (id: string) => api.get<ComfyUIWorkflow>(`/comfyui/workflows/${id}`),
+  update: (id: string, data: { name?: string; nodeMappings?: Partial<ComfyUINodeMappings> }) =>
+    api.put<ComfyUIWorkflow>(`/comfyui/workflows/${id}`, data),
+  delete: (id: string) => api.delete(`/comfyui/workflows/${id}`),
+  parse: (id: string) => api.post<{ nodes: ComfyUINodeInfo[] }>(`/comfyui/workflows/${id}/parse`),
+  setActive: (workflowId: string) => api.put<GlobalSettings>('/comfyui/active-workflow', { workflowId }),
 };
 
 export default api;
