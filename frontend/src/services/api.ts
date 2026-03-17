@@ -238,6 +238,7 @@ export const settingsApi = {
   update: (settings: GlobalSettings) =>
     api.put<GlobalSettings>('/settings', settings),
   testLLM: () => api.post('/settings/llm/test'),
+  testTTS: () => api.post('/settings/tts/test'),
 };
 
 export const comfyuiWorkflowApi = {

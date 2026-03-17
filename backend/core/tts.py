@@ -1,5 +1,5 @@
 import aiohttp
-from typing import Optional
+from typing import Optional, Union
 import logging
 import struct
 import wave
@@ -7,16 +7,37 @@ from io import BytesIO
 
 from config import settings
 from core.retry import async_retry
+from models.schemas import GlobalSettings
 
 logger = logging.getLogger(__name__)
 
 class TTSClient:
-    def __init__(self, key: Optional[str] = None, region: Optional[str] = None):
-        self.key = key or settings.azure_tts_key
-        self.region = region or settings.azure_tts_region
-        self.voice = settings.tts_voice
-        self.rate = settings.tts_rate
-        self.pitch = settings.tts_pitch
+    def __init__(
+        self,
+        settings_or_key: Optional[Union[GlobalSettings, str]] = None,
+        region: Optional[str] = None
+    ):
+        """
+        Initialize TTS client.
+
+        Args:
+            settings_or_key: Either a GlobalSettings object, or an Azure key string, or None
+            region: Azure region (only needed if first arg is a key string
+        """
+        if isinstance(settings_or_key, GlobalSettings):
+            # Use GlobalSettings object
+            self.key = settings_or_key.tts.azureKey
+            self.region = settings_or_key.tts.azureRegion
+            self.voice = settings_or_key.tts.voice
+            self.rate = settings_or_key.tts.rate
+            self.pitch = settings_or_key.tts.pitch
+        else:
+            # Legacy mode: key string + region
+            self.key = settings_or_key or settings.azure_tts_key
+            self.region = region or settings.azure_tts_region
+            self.voice = settings.tts_voice
+            self.rate = settings.tts_rate
+            self.pitch = settings.tts_pitch
 
     async def _get_access_token(self) -> str:
         if not self.key or not self.region:
@@ -84,3 +105,22 @@ class TTSClient:
                 return frames / rate
         except Exception:
             return len(wav_data) / 48000
+
+    async def test_connection(self) -> dict:
+        """Test the TTS connection with a simple prompt"""
+        test_text = "你好，这是一个测试。"
+        try:
+            audio_data, duration = await self.synthesize(test_text)
+            return {
+                "success": True,
+                "voice": self.voice,
+                "duration": duration,
+                "audioSize": len(audio_data)
+            }
+        except Exception as e:
+            logger.error(f"TTS test failed: {e}")
+            return {
+                "success": False,
+                "voice": self.voice,
+                "error": str(e)
+            }

@@ -134,7 +134,8 @@ async def generate_single_audio(project_id: str, sb_id: str):
             storyboard.audioStatus = GenerationStatus.GENERATING
             storage.save_project(project)
 
-            tts_client = TTSClient()
+            settings_obj = storage.load_global_settings()
+            tts_client = TTSClient(settings_obj)
             audio_data, duration = await tts_client.synthesize(text)
 
             proj_dir = Path(settings.data_dir) / "projects" / project_id

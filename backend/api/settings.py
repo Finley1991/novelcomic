@@ -4,6 +4,7 @@ from typing import Dict, Any
 from models.schemas import GlobalSettings
 from core.storage import storage
 from core.llm import LLMClient
+from core.tts import TTSClient
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -24,4 +25,12 @@ async def test_llm():
     settings_obj = storage.load_global_settings()
     llm_client = LLMClient(settings_obj)
     result = await llm_client.test_connection()
+    return result
+
+
+@router.post("/settings/tts/test")
+async def test_tts():
+    settings_obj = storage.load_global_settings()
+    tts_client = TTSClient(settings_obj)
+    result = await tts_client.test_connection()
     return result

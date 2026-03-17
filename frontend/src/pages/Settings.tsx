@@ -94,6 +94,8 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testingTTS, setTestingTTS] = useState(false);
+  const [ttsTestResult, setTtsTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [workflows, setWorkflows] = useState<ComfyUIWorkflow[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -210,6 +212,47 @@ const Settings: React.FC = () => {
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleTestTTS = async () => {
+    setTestingTTS(true);
+    setTtsTestResult(null);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+      const response = await settingsApi.testTTS();
+
+      clearTimeout(timeoutId);
+
+      if (response.data.success) {
+        setTtsTestResult({
+          success: true,
+          message: `连接成功！\n声音: ${response.data.voice}\n时长: ${response.data.duration.toFixed(2)}秒\n音频大小: ${response.data.audioSize}字节`
+        });
+      } else {
+        setTtsTestResult({
+          success: false,
+          message: `连接失败！\n声音: ${response.data.voice}\n错误: ${response.data.error || '未知错误'}`
+        });
+      }
+    } catch (error: any) {
+      console.error('Test error:', error);
+      let errorMsg = '测试失败';
+      if (error.code === 'ERR_CANCELED') {
+        errorMsg = '请求超时，请检查网络连接和 API 配置';
+      } else if (error.message) {
+        errorMsg = error.message;
+      } else if (error.response) {
+        errorMsg = `服务器错误: ${error.response.status}`;
+      }
+      setTtsTestResult({
+        success: false,
+        message: errorMsg
+      });
+    } finally {
+      setTestingTTS(false);
     }
   };
 
@@ -568,7 +611,21 @@ const Settings: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">微软 TTS 设置</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">微软 TTS 设置</h3>
+            <button
+              onClick={handleTestTTS}
+              disabled={testingTTS}
+              className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 disabled:opacity-50 text-sm"
+            >
+              {testingTTS ? '测试中...' : '测试连接'}
+            </button>
+          </div>
+          {ttsTestResult && (
+            <div className={`mb-4 p-4 rounded-md ${ttsTestResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              <pre className="whitespace-pre-wrap text-sm">{ttsTestResult.message}</pre>
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Subscription Key</label>
