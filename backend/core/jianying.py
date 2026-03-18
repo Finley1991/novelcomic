@@ -17,6 +17,7 @@ class JianyingGenerator:
         self.project = project
         self.output_dir = output_dir
         self.draft_id = str(uuid.uuid4()).upper()
+        self.path_placeholder_id = str(uuid.uuid4()).upper()
         self.now = datetime.now()
 
     def generate(self) -> Path:
@@ -26,7 +27,6 @@ class JianyingGenerator:
         draft_dir.mkdir(parents=True)
 
         (draft_dir / "video").mkdir()
-        (draft_dir / "image").mkdir()
         (draft_dir / "audio").mkdir()
 
         self._copy_assets(draft_dir)
@@ -52,7 +52,7 @@ class JianyingGenerator:
                 src_path = proj_dir / sb.imagePath
                 if src_path.exists():
                     dst_name = f"{sb.id}.png"
-                    shutil.copy2(src_path, draft_dir / "image" / dst_name)
+                    shutil.copy2(src_path, draft_dir / "video" / dst_name)
 
             if sb.audioPath:
                 src_path = proj_dir / sb.audioPath
@@ -77,8 +77,8 @@ class JianyingGenerator:
                 img_path = Path(sb.imagePath)
                 materials_videos.append({
                     "id": sb_material_id,
-                    "type": "photo",
-                    "path": f"##_draftpath_placeholder_{self.draft_id}_##/image/{sb.id}.png",
+                    "type": "video",
+                    "path": f"##_draftpath_placeholder_{self.path_placeholder_id}_##/video/{sb.id}.png",
                     "media_path": "",
                     "local_id": "",
                     "has_audio": False,
@@ -772,7 +772,7 @@ class JianyingGenerator:
             "id": material_id,
             "type": "text_to_audio",
             "name": "",
-            "path": f"##_draftpath_placeholder_{self.draft_id}_##/audio/{sb_id}.wav",
+            "path": f"##_draftpath_placeholder_{self.path_placeholder_id}_##/audio/{sb_id}.wav",
             "category_name": "",
             "music_id": "",
             "text_id": "",
