@@ -558,21 +558,18 @@ class PromptTemplateManager:
         return _get_variables_for_type(prompt_type)
 
     def render_template(self, template: PromptTemplate, **kwargs) -> Tuple[str, str]:
-        from string import Template
-
-        class CustomTemplate(Template):
-            delimiter = '{'
-            idpattern = r'[a-zA-Z_][a-zA-Z0-9_]*'
-
-        def escape_braces(s: str) -> str:
-            return s.replace('{{', '\x00').replace('}}', '\x01').replace('{', '{{').replace('}', '}}').replace('\x00', '{').replace('\x01', '}')
-
-        system_prompt = escape_braces(template.systemPrompt)
-        user_prompt = escape_braces(template.userPrompt)
+        # 简单的替换函数：用 {var} 语法直接替换
+        def simple_replace(s: str, values: dict) -> str:
+            result = s
+            for key, value in values.items():
+                result = result.replace(f"{{{key}}}", str(value))
+            # 把 {{ 替换成 {, }} 替换成 }
+            result = result.replace("{{", "{").replace("}}", "}")
+            return result
 
         try:
-            rendered_system = CustomTemplate(system_prompt).safe_substitute(**kwargs) if system_prompt else ""
-            rendered_user = CustomTemplate(user_prompt).safe_substitute(**kwargs) if user_prompt else ""
+            rendered_system = simple_replace(template.systemPrompt, kwargs) if template.systemPrompt else ""
+            rendered_user = simple_replace(template.userPrompt, kwargs) if template.userPrompt else ""
             return rendered_system, rendered_user
         except Exception as e:
             logger.error(f"Failed to render template: {e}")
@@ -586,17 +583,23 @@ class PromptTemplateManager:
     ) -> PromptTemplate:
         template_id = ""
 
-        if project and project.useCustomPrompts:
-            template_id = project.projectPromptTemplates.get(prompt_type, "")
+        # 检查项目级模板（不管 useCustomPrompts，只要设置了就使用）
+        if project:
+            if hasattr(project, 'projectPromptTemplates'):
+                template_id = project.projectPromptTemplates.get(prompt_type, "")
 
+        # 如果没有项目级模板，检查全局默认
         if not template_id and global_settings:
-            template_id = global_settings.defaultPromptTemplates.get(prompt_type, "")
+            if hasattr(global_settings, 'defaultPromptTemplates'):
+                template_id = global_settings.defaultPromptTemplates.get(prompt_type, "")
 
+        # 如果找到了模板ID，尝试获取模板
         if template_id:
             template = self.get_template(template_id)
             if template:
                 return template
 
+        # 使用默认预设模板
         default_id = f"preset_{prompt_type.value}_1"
         return self._presets[default_id]
 

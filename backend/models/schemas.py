@@ -227,6 +227,13 @@ class CreateComfyUIWorkflowRequest(BaseModel):
     name: str
     workflowJson: Dict[str, Any]
 
+class UpdateProjectRequest(BaseModel):
+    name: Optional[str] = None
+    sourceText: Optional[str] = None
+    stylePrompt: Optional[str] = None
+    negativePrompt: Optional[str] = None
+    projectPromptTemplates: Optional[Dict[PromptType, str]] = None
+
 class UpdateComfyUIWorkflowRequest(BaseModel):
     name: Optional[str] = None
     nodeMappings: Optional[ComfyUINodeMappings] = None

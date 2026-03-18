@@ -6,7 +6,10 @@ import {
   storyboardApi,
   generationApi,
   exportApi,
+  promptApi,
   type Project,
+  type PromptTemplate,
+  type PromptType,
 } from '../services/api';
 
 const ProjectEditor: React.FC = () => {
@@ -17,10 +20,14 @@ const ProjectEditor: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [showProjectSettings, setShowProjectSettings] = useState(false);
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
+  const [savingProjectSettings, setSavingProjectSettings] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadProject();
+      loadPromptTemplates();
     }
   }, [id]);
 
@@ -42,6 +49,32 @@ const ProjectEditor: React.FC = () => {
       console.error('Failed to load project:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPromptTemplates = async () => {
+    try {
+      const response = await promptApi.listTemplates();
+      setPromptTemplates(response.data);
+    } catch (error) {
+      console.error('Failed to load prompt templates:', error);
+    }
+  };
+
+  const handleUpdateProjectPromptTemplate = async (type: PromptType, templateId: string) => {
+    if (!id || !project) return;
+    setSavingProjectSettings(true);
+    try {
+      const newTemplates = {
+        ...project.projectPromptTemplates,
+        [type]: templateId
+      };
+      const response = await projectApi.update(id, { projectPromptTemplates: newTemplates });
+      setProject(response.data);
+    } catch (error) {
+      console.error('Failed to update project prompt template:', error);
+    } finally {
+      setSavingProjectSettings(false);
     }
   };
 
@@ -144,7 +177,58 @@ const ProjectEditor: React.FC = () => {
           </button>
           <h2 className="text-2xl font-bold inline">{project.name}</h2>
         </div>
+        <button
+          onClick={() => setShowProjectSettings(!showProjectSettings)}
+          className="text-gray-600 hover:text-gray-800 text-sm"
+        >
+          {showProjectSettings ? '收起设置' : '项目设置'}
+        </button>
       </div>
+
+      {showProjectSettings && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">项目 Prompt 模板</h3>
+            <a
+              href="/prompts"
+              className="text-blue-500 hover:text-blue-600 text-sm"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              管理模板 →
+            </a>
+          </div>
+          <div className="space-y-4">
+            {[
+              { key: 'character_extraction' as const, label: '角色提取' },
+              { key: 'storyboard_split' as const, label: '分镜拆分' },
+              { key: 'image_prompt' as const, label: '图像生成' },
+            ].map(({ key: type, label }) => {
+              const templatesByType = promptTemplates.filter(t => t.type === type);
+              return (
+                <div key={type}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {label}
+                  </label>
+                  <select
+                    value={project.projectPromptTemplates?.[type] || ''}
+                    onChange={(e) => handleUpdateProjectPromptTemplate(type, e.target.value)}
+                    disabled={savingProjectSettings}
+                    className="w-full border rounded-md px-3 py-2 disabled:opacity-50"
+                  >
+                    <option value="">-- 使用全局默认 --</option>
+                    {templatesByType.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name} {template.isPreset ? '(预设)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="flex border-b">

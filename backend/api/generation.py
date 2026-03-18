@@ -5,6 +5,9 @@ from pathlib import Path
 from PIL import Image
 from io import BytesIO
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 from models.schemas import (
     Project, GenerateImagesRequest, GenerateAudiosRequest,
@@ -183,25 +186,34 @@ async def extract_characters(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    if not project.sourceText or not project.sourceText.strip():
+        raise HTTPException(status_code=400, detail="No source text available")
+
     settings_obj = storage.load_global_settings()
     llm_client = LLMClient(settings_obj)
-    char_dicts = await llm_client.extract_characters(
-        project.sourceText,
-        project=project,
-        global_settings=settings_obj
-    )
 
-    from models.schemas import Character
-    for char_dict in char_dicts:
-        char = Character(
-            name=char_dict.get("name", ""),
-            description=char_dict.get("description", ""),
-            characterPrompt=f"{char_dict.get('description', '')}, {char_dict.get('personality', '')}"
+    try:
+        char_dicts = await llm_client.extract_characters(
+            project.sourceText,
+            project=project,
+            global_settings=settings_obj
         )
-        project.characters.append(char)
 
-    storage.save_project(project)
-    return {"characters": project.characters}
+        if char_dicts:
+            from models.schemas import Character
+            for char_dict in char_dicts:
+                char = Character(
+                    name=char_dict.get("name", ""),
+                    description=char_dict.get("description", ""),
+                    characterPrompt=f"{char_dict.get('description', '')}, {char_dict.get('personality', '')}"
+                )
+                project.characters.append(char)
+
+        storage.save_project(project)
+        return {"characters": project.characters, "charactersExtracted": len(char_dicts)}
+    except Exception as e:
+        logger.error(f"Failed to extract characters: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
 
 @router.post("/projects/{project_id}/storyboards/split")
 async def split_storyboard(project_id: str):
@@ -209,36 +221,47 @@ async def split_storyboard(project_id: str):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    if not project.sourceText or not project.sourceText.strip():
+        raise HTTPException(status_code=400, detail="No source text available")
+
     settings_obj = storage.load_global_settings()
     llm_client = LLMClient(settings_obj)
-    char_dicts = [c.model_dump() for c in project.characters]
-    sb_dicts = await llm_client.split_storyboard(
-        project.sourceText,
-        char_dicts,
-        project=project,
-        global_settings=settings_obj
-    )
 
-    from models.schemas import Storyboard
-    char_map = {c.name: c.id for c in project.characters}
-
-    for sb_dict in sb_dicts:
-        char_names = sb_dict.get("characterNames", [])
-        char_ids = [char_map[name] for name in char_names if name in char_map]
-
-        storyboard = Storyboard(
-            index=sb_dict.get("index", len(project.storyboards)),
-            sceneDescription=sb_dict.get("sceneDescription", ""),
-            dialogue=sb_dict.get("dialogue", ""),
-            narration=sb_dict.get("narration", ""),
-            characterIds=char_ids
+    try:
+        char_dicts = [c.model_dump() for c in project.characters]
+        sb_dicts = await llm_client.split_storyboard(
+            project.sourceText,
+            char_dicts,
+            project=project,
+            global_settings=settings_obj
         )
-        project.storyboards.append(storyboard)
 
-    project.generationProgress.imagesTotal = len(project.storyboards)
-    project.generationProgress.audioTotal = len(project.storyboards)
-    storage.save_project(project)
-    return {"storyboards": project.storyboards}
+        if not sb_dicts:
+            raise HTTPException(status_code=500, detail="No storyboards split from LLM")
+
+        from models.schemas import Storyboard
+        char_map = {c.name: c.id for c in project.characters}
+
+        for sb_dict in sb_dicts:
+            char_names = sb_dict.get("characterNames", [])
+            char_ids = [char_map[name] for name in char_names if name in char_map]
+
+            storyboard = Storyboard(
+                index=sb_dict.get("index", len(project.storyboards)),
+                sceneDescription=sb_dict.get("sceneDescription", ""),
+                dialogue=sb_dict.get("dialogue", ""),
+                narration=sb_dict.get("narration", ""),
+                characterIds=char_ids
+            )
+            project.storyboards.append(storyboard)
+
+        project.generationProgress.imagesTotal = len(project.storyboards)
+        project.generationProgress.audioTotal = len(project.storyboards)
+        storage.save_project(project)
+        return {"storyboards": project.storyboards}
+    except Exception as e:
+        logger.error(f"Failed to split storyboards: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to split storyboards: {str(e)}")
 
 @router.post("/projects/{project_id}/generate/image")
 async def generate_image(

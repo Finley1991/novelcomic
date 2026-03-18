@@ -26,7 +26,7 @@ class OllamaClient:
             "stream": False,
             "options": {
                 "temperature": 0.7,
-                "num_predict": 2048
+                "num_predict": 8192
             }
         }
 
@@ -87,6 +87,17 @@ class OllamaClient:
 
             try:
                 response = await self.generate(user_prompt, system_prompt)
+
+                # 移除可能的 markdown 代码块标记
+                response = response.strip()
+                if response.startswith("```json"):
+                    response = response[7:]
+                if response.startswith("```"):
+                    response = response[3:]
+                if response.endswith("```"):
+                    response = response[:-3]
+                response = response.strip()
+
                 json_start = response.find("[")
                 json_end = response.rfind("]") + 1
                 if json_start >= 0 and json_end > json_start:

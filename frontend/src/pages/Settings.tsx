@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { settingsApi, comfyuiWorkflowApi, type GlobalSettings, type ComfyUIWorkflow, type ComfyUINodeInfo, type ComfyUINodeMappings, type ComfyUIWorkflowParams } from '../services/api';
+import { settingsApi, comfyuiWorkflowApi, promptApi, type GlobalSettings, type ComfyUIWorkflow, type ComfyUINodeInfo, type ComfyUINodeMappings, type ComfyUIWorkflowParams, type PromptTemplate } from '../services/api';
 
 function NodeMappingField({
   label,
@@ -80,6 +80,7 @@ function NodeMappingField({
 
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<GlobalSettings>({
+    defaultPromptTemplates: {},
     comfyui: { apiUrl: '', timeout: 300, maxRetries: 3, concurrentLimit: 3 },
     llm: {
       provider: 'ollama',
@@ -90,6 +91,7 @@ const Settings: React.FC = () => {
     tts: { azureKey: '', azureRegion: '', voice: 'zh-CN-XiaoxiaoNeural', rate: 1.0, pitch: 0, timeout: 60, maxRetries: 3, concurrentLimit: 5 },
     jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9' },
   });
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -131,6 +133,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     loadSettings();
     loadWorkflows();
+    loadPromptTemplates();
   }, []);
 
   const loadSettings = async () => {
@@ -144,11 +147,23 @@ const Settings: React.FC = () => {
           openai: { apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o', timeout: 120, maxRetries: 2, chunkSize: 4000, proxy: '' }
         };
       }
+      if (!loadedSettings.defaultPromptTemplates) {
+        loadedSettings.defaultPromptTemplates = {};
+      }
       setSettings(loadedSettings);
     } catch (error) {
       console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPromptTemplates = async () => {
+    try {
+      const response = await promptApi.listTemplates();
+      setPromptTemplates(response.data);
+    } catch (error) {
+      console.error('Failed to load prompt templates:', error);
     }
   };
 
@@ -607,6 +622,52 @@ const Settings: React.FC = () => {
                 placeholder="http://localhost:8188"
               />
             </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">默认 Prompt 模板</h3>
+            <a
+              href="/prompts"
+              className="text-blue-500 hover:text-blue-600 text-sm"
+            >
+              管理模板 →
+            </a>
+          </div>
+          <div className="space-y-4">
+            {[
+              { key: 'character_extraction' as const, label: '角色提取' },
+              { key: 'storyboard_split' as const, label: '分镜拆分' },
+              { key: 'image_prompt' as const, label: '图像生成' },
+            ].map(({ key: type, label }) => {
+              const templatesByType = promptTemplates.filter(t => t.type === type);
+              return (
+                <div key={type}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {label}
+                  </label>
+                  <select
+                    value={settings.defaultPromptTemplates[type] || ''}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      defaultPromptTemplates: {
+                        ...settings.defaultPromptTemplates,
+                        [type]: e.target.value
+                      }
+                    })}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="">-- 选择模板 --</option>
+                    {templatesByType.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name} {template.isPreset ? '(预设)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
           </div>
         </div>
 

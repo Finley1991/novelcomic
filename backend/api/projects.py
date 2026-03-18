@@ -7,7 +7,7 @@ import logging
 from models.schemas import (
     Project, CreateProjectRequest, GlobalSettings,
     Character, Storyboard, UpdateStoryboardRequest,
-    ReorderStoryboardsRequest
+    ReorderStoryboardsRequest, PromptType, UpdateProjectRequest
 )
 from core.storage import storage
 from core.llm import LLMClient
@@ -49,13 +49,20 @@ async def get_project(project_id: str):
     return project
 
 @router.put("/projects/{project_id}", response_model=Project)
-async def update_project(project_id: str, request: CreateProjectRequest):
+async def update_project(project_id: str, request: UpdateProjectRequest):
     project = storage.load_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    project.name = request.name
+    if request.name is not None:
+        project.name = request.name
     if request.sourceText is not None:
         project.sourceText = request.sourceText
+    if request.stylePrompt is not None:
+        project.stylePrompt = request.stylePrompt
+    if request.negativePrompt is not None:
+        project.negativePrompt = request.negativePrompt
+    if request.projectPromptTemplates is not None:
+        project.projectPromptTemplates = request.projectPromptTemplates
     storage.save_project(project)
     return project
 
@@ -196,77 +203,7 @@ async def reorder_storyboards(project_id: str, request: ReorderStoryboardsReques
     storage.save_project(project)
     return {"success": True}
 
-# AI processing endpoints
-@router.post("/projects/{project_id}/characters/extract")
-async def extract_characters(project_id: str):
-    project = storage.load_project(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if not project.sourceText.strip():
-        raise HTTPException(status_code=400, detail="No source text available")
-
-    settings = storage.load_global_settings()
-    llm_client = LLMClient(settings)
-
-    try:
-        chars_data = await llm_client.extract_characters(project.sourceText)
-        for char_data in chars_data:
-            char = Character(
-                name=char_data.get("name", ""),
-                description=char_data.get("description", ""),
-                characterPrompt=char_data.get("description", "")
-            )
-            project.characters.append(char)
-        storage.save_project(project)
-        return {"success": True, "charactersExtracted": len(chars_data)}
-    except Exception as e:
-        logger.error(f"Failed to extract characters: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
-
-@router.post("/projects/{project_id}/storyboards/split")
-async def split_storyboards(project_id: str):
-    project = storage.load_project(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if not project.sourceText.strip():
-        raise HTTPException(status_code=400, detail="No source text available")
-
-    settings = storage.load_global_settings()
-    llm_client = LLMClient(settings)
-
-    try:
-        chars_data = [{"name": c.name, "description": c.description} for c in project.characters]
-        sbs_data = await llm_client.split_storyboard(project.sourceText, chars_data)
-
-        # Clear existing storyboards
-        project.storyboards = []
-
-        for sb_data in sbs_data:
-            # Map character names to character IDs
-            char_names = sb_data.get("characterNames", [])
-            char_ids = []
-            for name in char_names:
-                for char in project.characters:
-                    if char.name == name:
-                        char_ids.append(char.id)
-                        break
-
-            storyboard = Storyboard(
-                index=sb_data.get("index", len(project.storyboards)),
-                sceneDescription=sb_data.get("sceneDescription", ""),
-                dialogue=sb_data.get("dialogue", ""),
-                narration=sb_data.get("narration", ""),
-                characterIds=char_ids
-            )
-            project.storyboards.append(storyboard)
-
-        storage.save_project(project)
-        return {"success": True, "storyboardsCreated": len(sbs_data)}
-    except Exception as e:
-        logger.error(f"Failed to split storyboards: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to split storyboards: {str(e)}")
+# AI processing endpoints are in generation.py
 
 # LLM test endpoint
 @router.post("/settings/llm/test")

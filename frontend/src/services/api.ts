@@ -84,7 +84,7 @@ export interface Project {
   stylePrompt: string;
   negativePrompt: string;
   useCustomPrompts: boolean;
-  projectPromptTemplates: Record<PromptType, string>;
+  projectPromptTemplates: Partial<Record<PromptType, string>>;
   characters: Character[];
   storyboards: Storyboard[];
 }
@@ -186,7 +186,7 @@ export interface JianyingSettings {
 }
 
 export interface GlobalSettings {
-  defaultPromptTemplates: Record<PromptType, string>;
+  defaultPromptTemplates: Partial<Record<PromptType, string>>;
   comfyui: ComfyUISettings;
   llm: LLMSettings;
   ollama: OllamaSettings;
@@ -194,13 +194,21 @@ export interface GlobalSettings {
   jianying: JianyingSettings;
 }
 
+export interface UpdateProjectRequest {
+  name?: string;
+  sourceText?: string;
+  stylePrompt?: string;
+  negativePrompt?: string;
+  projectPromptTemplates?: Partial<Record<PromptType, string>>;
+}
+
 export const projectApi = {
   list: () => api.get<any[]>('/projects'),
   create: (name: string, sourceText?: string) =>
     api.post<Project>('/projects', { name, sourceText }),
   get: (id: string) => api.get<Project>(`/projects/${id}`),
-  update: (id: string, name: string, sourceText?: string) =>
-    api.put<Project>(`/projects/${id}`, { name, sourceText }),
+  update: (id: string, data: UpdateProjectRequest) =>
+    api.put<Project>(`/projects/${id}`, data),
   delete: (id: string) => api.delete(`/projects/${id}`),
 };
 

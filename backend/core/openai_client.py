@@ -121,6 +121,18 @@ class OpenAIClient:
 
             try:
                 response = await self.generate(user_prompt, system_prompt)
+                logger.info(f"LLM response for character extraction: {response[:200]}...")
+
+                # 移除可能的 markdown 代码块标记
+                response = response.strip()
+                if response.startswith("```json"):
+                    response = response[7:]
+                if response.startswith("```"):
+                    response = response[3:]
+                if response.endswith("```"):
+                    response = response[:-3]
+                response = response.strip()
+
                 json_start = response.find("[")
                 json_end = response.rfind("]") + 1
                 if json_start >= 0 and json_end > json_start:
@@ -131,6 +143,8 @@ class OpenAIClient:
                         if name and name not in seen_names:
                             seen_names.add(name)
                             all_characters.append(char)
+                else:
+                    logger.warning(f"No JSON array found in response: {response}")
             except Exception as e:
                 logger.error(f"Failed to extract characters from chunk: {e}")
 
