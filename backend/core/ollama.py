@@ -24,6 +24,7 @@ class OllamaClient:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": 0.7,
                 "num_predict": 8192
@@ -87,6 +88,7 @@ class OllamaClient:
 
             try:
                 response = await self.generate(user_prompt, system_prompt)
+                logger.info(f"Raw LLM response: {response[:500]}...")
 
                 # 移除可能的 markdown 代码块标记
                 response = response.strip()
@@ -144,6 +146,8 @@ class OllamaClient:
 
             try:
                 response = await self.generate(user_prompt, system_prompt)
+                logger.info(f"Raw storyboard response: {response[:500]}...")
+
                 json_start = response.find("[")
                 json_end = response.rfind("]") + 1
                 if json_start >= 0 and json_end > json_start:
