@@ -179,11 +179,12 @@ export interface TTSSettings {
   concurrentLimit: number;
 }
 
-export interface JianyingSettings {
-  canvasWidth: number;
-  canvasHeight: number;
-  canvasRatio: string;
-}
+// 剪映相关已禁用，待找到合适参考后重新实现
+// export interface JianyingSettings {
+//   canvasWidth: number;
+//   canvasHeight: number;
+//   canvasRatio: string;
+// }
 
 export interface GlobalSettings {
   defaultPromptTemplates: Partial<Record<PromptType, string>>;
@@ -191,7 +192,7 @@ export interface GlobalSettings {
   llm: LLMSettings;
   ollama: OllamaSettings;
   tts: TTSSettings;
-  jianying: JianyingSettings;
+  // jianying: JianyingSettings;
 }
 
 export interface UpdateProjectRequest {
@@ -266,10 +267,11 @@ export const generationApi = {
     api.get(`/projects/${projectId}/generate/status`),
 };
 
-export const exportApi = {
-  exportJianying: (projectId: string) =>
-    api.post(`/projects/${projectId}/export/jianying`, {}),
-};
+// 剪映导出已禁用，待找到合适参考后重新实现
+// export const exportApi = {
+//   exportJianying: (projectId: string) =>
+//     api.post(`/projects/${projectId}/export/jianying`, {}),
+// };
 
 export const settingsApi = {
   get: () => api.get<GlobalSettings>('/settings'),

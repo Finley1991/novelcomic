@@ -89,7 +89,7 @@ const Settings: React.FC = () => {
     },
     ollama: { apiUrl: '', model: 'llama3', timeout: 120, maxRetries: 2, chunkSize: 4000 },
     tts: { azureKey: '', azureRegion: '', voice: 'zh-CN-XiaoxiaoNeural', rate: 1.0, pitch: 0, timeout: 60, maxRetries: 3, concurrentLimit: 5 },
-    jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9' },
+    // jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9' },
   });
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
