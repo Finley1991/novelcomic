@@ -638,7 +638,6 @@ const Settings: React.FC = () => {
           <div className="space-y-4">
             {[
               { key: 'character_extraction' as const, label: '角色提取' },
-              { key: 'storyboard_split' as const, label: '分镜拆分' },
               { key: 'image_prompt' as const, label: '图像生成' },
             ].map(({ key: type, label }) => {
               const templatesByType = promptTemplates.filter(t => t.type === type);

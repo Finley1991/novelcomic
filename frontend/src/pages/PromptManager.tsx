@@ -19,7 +19,7 @@ const PromptManager: React.FC = () => {
 
   const typeLabels: Record<PromptType, string> = {
     character_extraction: '角色提取',
-    storyboard_split: '分镜拆分',
+    storyboard_split: '分镜拆分（旧版）',
     image_prompt: '图像生成',
   };
 
@@ -168,6 +168,22 @@ const PromptManager: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* 分镜拆分旧版提示 */}
+        {currentType === 'storyboard_split' && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <span className="text-yellow-600 text-xl">⚠️</span>
+              <div>
+                <h4 className="font-medium text-yellow-800 mb-1">分镜拆分已更新</h4>
+                <p className="text-yellow-700 text-sm">
+                  当前版本已改用按行分割的方式创建分镜，不再使用 LLM 模板进行智能拆分。
+                  此页面的模板仅用于历史参考。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-6">
           {/* 模板列表 */}
