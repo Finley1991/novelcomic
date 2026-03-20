@@ -22,6 +22,10 @@ const ProjectEditor: React.FC = () => {
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [savingProjectSettings, setSavingProjectSettings] = useState(false);
+  const [linesPerStoryboard, setLinesPerStoryboard] = useState(1);
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const [editingPrompt, setEditingPrompt] = useState<{ [key: string]: string }>({});
+  const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -99,10 +103,35 @@ const ProjectEditor: React.FC = () => {
   const handleSplitStoryboard = async () => {
     if (!id) return;
     try {
-      await storyboardApi.split(id);
+      await storyboardApi.split(id, linesPerStoryboard);
       await loadProject();
     } catch (error) {
       console.error('Failed to split storyboard:', error);
+    }
+  };
+
+  const handlePromptChange = (storyboardId: string, value: string) => {
+    setEditingPrompt(prev => ({ ...prev, [storyboardId]: value }));
+  };
+
+  const handlePromptSave = async (storyboardId: string) => {
+    if (!id) return;
+    const newValue = editingPrompt[storyboardId];
+    if (newValue === undefined) return;
+
+    setSavingPrompt(storyboardId);
+    try {
+      await storyboardApi.update(id, storyboardId, { imagePrompt: newValue });
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to save prompt:', error);
+    } finally {
+      setSavingPrompt(null);
+      setEditingPrompt(prev => {
+        const next = { ...prev };
+        delete next[storyboardId];
+        return next;
+      });
     }
   };
 
@@ -368,12 +397,23 @@ const ProjectEditor: React.FC = () => {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">分镜列表 ({project.storyboards.length})</h3>
-              <button
-                onClick={handleSplitStoryboard}
-                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-              >
-                自动拆分剧本
-              </button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={linesPerStoryboard}
+                  onChange={(e) => setLinesPerStoryboard(parseInt(e.target.value))}
+                  className="border rounded-md px-3 py-2 text-sm"
+                >
+                  <option value={1}>1行/分镜</option>
+                  <option value={2}>2行/分镜</option>
+                  <option value={3}>3行/分镜</option>
+                </select>
+                <button
+                  onClick={handleSplitStoryboard}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                >
+                  自动拆分剧本
+                </button>
+              </div>
             </div>
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {project.storyboards.map((sb) => (
@@ -388,6 +428,39 @@ const ProjectEditor: React.FC = () => {
                   {sb.narration && (
                     <p className="text-sm text-green-600 mt-1">旁白: {sb.narration}</p>
                   )}
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-sm font-medium text-gray-700">画图提示词</label>
+                      <div className="flex items-center gap-2">
+                        {savingPrompt === sb.id && (
+                          <span className="text-xs text-gray-400">保存中...</span>
+                        )}
+                        <button
+                          onClick={() => setExpandedPrompt(
+                            expandedPrompt === sb.id ? null : sb.id
+                          )}
+                          className="text-xs text-blue-500 hover:text-blue-600"
+                        >
+                          {expandedPrompt === sb.id ? '收起' : '展开'}
+                        </button>
+                      </div>
+                    </div>
+                    {expandedPrompt === sb.id ? (
+                      <textarea
+                        value={editingPrompt[sb.id] ?? sb.imagePrompt ?? ''}
+                        onChange={(e) => handlePromptChange(sb.id, e.target.value)}
+                        onBlur={() => handlePromptSave(sb.id)}
+                        placeholder="AI 生成的画图提示词将显示在这里..."
+                        className="w-full border rounded-md px-3 py-2 text-sm font-mono disabled:opacity-50"
+                        rows={4}
+                        disabled={savingPrompt === sb.id}
+                      />
+                    ) : (
+                      sb.imagePrompt && (
+                        <p className="text-xs text-gray-500 truncate">{sb.imagePrompt}</p>
+                      )
+                    )}
+                  </div>
                 </div>
               ))}
               {project.storyboards.length === 0 && (
