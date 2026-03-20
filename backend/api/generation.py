@@ -130,7 +130,7 @@ async def generate_single_audio(project_id: str, sb_id: str):
             if not storyboard:
                 return
 
-            text = storyboard.narration or storyboard.dialogue
+            text = storyboard.narration or storyboard.dialogue or storyboard.sceneDescription
             if not text or not text.strip():
                 storyboard.audioStatus = GenerationStatus.COMPLETED
                 storyboard.audioDuration = 0

@@ -554,11 +554,13 @@ const ProjectEditor: React.FC = () => {
                   )}
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t">
                     {sb.audioStatus === 'completed' && sb.audioPath ? (
-                      <audio controls className="h-8 flex-1">
+                      <audio controls className="h-12 flex-1">
                         <source src={`/data/projects/${id}/${sb.audioPath}`} />
                       </audio>
                     ) : (
-                      <div className="flex-1" />
+                      <div className="flex-1 text-xs text-gray-400">
+                        状态: {sb.audioStatus}, 路径: {sb.audioPath || '无'}
+                      </div>
                     )}
                     {sb.audioStatus !== 'generating' && (
                       <button
