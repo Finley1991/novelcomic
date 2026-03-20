@@ -5,7 +5,6 @@ import {
   characterApi,
   storyboardApi,
   generationApi,
-  exportApi,
   promptApi,
   type Project,
   type PromptTemplate,
@@ -137,24 +136,11 @@ const ProjectEditor: React.FC = () => {
     }
   };
 
-  const handleExportJianying = async () => {
-    if (!id) return;
-    try {
-      const response = await exportApi.exportJianying(id);
-      if (response.data.downloadUrl) {
-        window.location.href = response.data.downloadUrl;
-      }
-    } catch (error) {
-      console.error('Failed to export:', error);
-    }
-  };
-
   const steps = [
     { name: '角色管理', onClick: () => setCurrentStep(0) },
     { name: '剧本拆分', onClick: () => setCurrentStep(1) },
     { name: '图片生成', onClick: () => setCurrentStep(2) },
     { name: '配音生成', onClick: () => setCurrentStep(3) },
-    { name: '导出剪映', onClick: () => setCurrentStep(4) },
   ];
 
   if (loading) {
@@ -513,21 +499,6 @@ const ProjectEditor: React.FC = () => {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {currentStep === 4 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-4">导出剪映草稿</h3>
-            <p className="text-gray-600 mb-6">
-              点击下方按钮导出剪映草稿 ZIP 文件，解压后用剪映打开即可编辑。
-            </p>
-            <button
-              onClick={handleExportJianying}
-              className="bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 text-lg"
-            >
-              📥 导出剪映草稿
-            </button>
           </div>
         )}
       </div>

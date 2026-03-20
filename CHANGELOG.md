@@ -4,6 +4,22 @@
 
 ### 2026-03-18
 
+#### 剪映草稿导出优化
+- **更新草稿结构匹配真实剪映格式**
+  - 添加完整的根级字段（version: 400000, new_version: 127.0.0, create_time, update_time, config, platform 等）
+  - 添加所有 5 个标准轨道：Screen, Subtitle, ScreenTitle, TTS, Music
+  - 字幕文本轨道自动添加对话/旁白
+  - 完整的 material 字段结构
+  - 添加 hdr_settings, uniform_scale, responsive_layout 等片段字段
+  - 添加 attachment_editing.json 和 common_attachment 文件夹
+  - 图片素材使用 type: "video" 并放在 video/ 文件夹
+  - 使用独立的 path_placeholder_id
+
+#### 已知问题
+- **剪映草稿媒体丢失问题**：图片和音频文件在文件夹中存在，但剪映中显示媒体丢失
+  - 需要进一步调试真实剪映草稿的路径解析机制
+  - 可能需要分析剪映导入草稿时的路径映射逻辑
+
 #### 性能优化
 - **Ollama 响应速度大幅提升**
   - 在 OllamaClient 中添加 `"think": False` 参数

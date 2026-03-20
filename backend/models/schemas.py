@@ -267,18 +267,19 @@ class GenerateAudiosRequest(BaseModel):
     storyboardIds: Optional[List[str]] = None
     forceRegenerate: bool = False
 
-class ExportJianyingRequest(BaseModel):
-    canvasWidth: Optional[int] = None
-    canvasHeight: Optional[int] = None
-    fps: Optional[int] = None
+# 剪映导出相关 schema 暂时禁用 - 待找到合适参考后重新实现
+# class ExportJianyingRequest(BaseModel):
+#     canvasWidth: Optional[int] = None
+#     canvasHeight: Optional[int] = None
+#     fps: Optional[int] = None
 
 # Response schemas
 class GenerationStatusResponse(BaseModel):
     images: Dict[str, Any]
     audio: Dict[str, Any]
 
-class ExportJianyingResponse(BaseModel):
-    exportId: str
-    status: str
-    downloadUrl: Optional[str] = None
-    error: Optional[str] = None
+# class ExportJianyingResponse(BaseModel):
+#     exportId: str
+#     status: str
+#     downloadUrl: Optional[str] = None
+#     error: Optional[str] = None
