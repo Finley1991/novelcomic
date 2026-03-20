@@ -267,6 +267,16 @@ class GenerateAudiosRequest(BaseModel):
     storyboardIds: Optional[List[str]] = None
     forceRegenerate: bool = False
 
+class SplitStoryboardRequest(BaseModel):
+    lines_per_storyboard: int = Field(1, ge=1, le=3, description="每个分镜包含的行数(1-3)")
+
+class GeneratePromptsRequest(BaseModel):
+    storyboardIds: Optional[List[str]] = None
+
+class GeneratePromptsResponse(BaseModel):
+    success: bool
+    updated: int
+
 # 剪映导出相关 schema 暂时禁用 - 待找到合适参考后重新实现
 # class ExportJianyingRequest(BaseModel):
 #     canvasWidth: Optional[int] = None

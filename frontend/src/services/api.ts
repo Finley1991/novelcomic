@@ -195,6 +195,19 @@ export interface GlobalSettings {
   // jianying: JianyingSettings;
 }
 
+export interface SplitStoryboardRequest {
+  lines_per_storyboard: number;
+}
+
+export interface GeneratePromptsRequest {
+  storyboardIds?: string[];
+}
+
+export interface GeneratePromptsResponse {
+  success: boolean;
+  updated: number;
+}
+
 export interface UpdateProjectRequest {
   name?: string;
   sourceText?: string;
@@ -232,8 +245,10 @@ export const characterApi = {
 };
 
 export const storyboardApi = {
-  split: (projectId: string) =>
-    api.post(`/projects/${projectId}/storyboards/split`),
+  split: (projectId: string, linesPerStoryboard?: number) =>
+    api.post(`/projects/${projectId}/storyboards/split`, {
+      lines_per_storyboard: linesPerStoryboard || 1
+    }),
   list: (projectId: string) =>
     api.get<Storyboard[]>(`/projects/${projectId}/storyboards`),
   update: (projectId: string, sbId: string, data: Partial<Storyboard>) =>
@@ -242,6 +257,10 @@ export const storyboardApi = {
     api.delete(`/projects/${projectId}/storyboards/${sbId}`),
   reorder: (projectId: string, storyboardIds: string[]) =>
     api.put(`/projects/${projectId}/storyboards/reorder`, { storyboardIds }),
+  generatePrompts: (projectId: string, storyboardIds?: string[]) =>
+    api.post<GeneratePromptsResponse>(`/projects/${projectId}/storyboards/generate-prompts`, {
+      storyboardIds
+    }),
 };
 
 export const generationApi = {
