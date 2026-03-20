@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### 2026-03-20
+
+#### 剧本拆分功能优化
+- **按行分割剧本**
+  - 支持用户选择 1/2/3 行一个分镜
+  - 原文直接填入 sceneDescription，不处理台词/旁白/角色
+  - 更简单直观的分镜创建方式
+- **自动批量生成提示词**
+  - 分镜拆分后自动为所有分镜生成画图提示词（imagePrompt）
+  - 新增 API 端点 `POST /api/projects/{projectId}/storyboards/generate-prompts`
+  - 支持单独为指定分镜生成提示词
+- **前端分镜提示词编辑**
+  - 每个分镜显示可展开/收起的 imagePrompt 输入框
+  - 支持手动编辑提示词，失焦自动保存
+  - 显示提示词生成状态
+- **音频生成修复**
+  - 修复按行拆分后音频不生成的问题
+  - 音频生成逻辑优先级：narration → dialogue → sceneDescription
+
+#### 技术改进
+- 新增 `SplitStoryboardRequest` Schema，支持 lines_per_storyboard 参数
+- 新增 `GeneratePromptsRequest` 和 `GeneratePromptsResponse` Schema
+- 新增 `_generate_prompts_for_project` 辅助函数
+- 前端 TypeScript 类型完整更新
+- 前端分镜列表 UI 优化，支持提示词展开编辑
+
+#### 文件清单
+**修改文件:**
+- `backend/models/schemas.py` - 添加新的请求/响应 Schema
+- `backend/api/generation.py` - 按行分割 + 自动生成提示词
+- `frontend/src/services/api.ts` - TypeScript 类型和 API 方法更新
+- `frontend/src/pages/ProjectEditor.tsx` - 行数选择、提示词编辑 UI
+
 ### 2026-03-18
 
 #### 剪映草稿导出优化
