@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 from models.schemas import (
     Project, GenerateImagesRequest, GenerateAudiosRequest,
-    GenerationStatus, GenerationStatusResponse
+    GenerationStatus, GenerationStatusResponse,
+    SplitStoryboardRequest, GeneratePromptsRequest, GeneratePromptsResponse
 )
 from core.storage import storage
 from core.llm import LLMClient
@@ -215,8 +216,33 @@ async def extract_characters(project_id: str):
         logger.error(f"Failed to extract characters: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
 
+async def _generate_prompts_for_project(project: Project):
+    """为项目的所有分镜生成画图提示词"""
+    try:
+        settings_obj = storage.load_global_settings()
+        llm_client = LLMClient(settings_obj)
+        char_dicts = [c.model_dump() for c in project.characters]
+
+        for sb in project.storyboards:
+            if not sb.imagePrompt:
+                try:
+                    sb.imagePrompt = await llm_client.generate_image_prompt(
+                        sb.sceneDescription,
+                        char_dicts,
+                        project.stylePrompt,
+                        project=project,
+                        global_settings=settings_obj
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate prompt for storyboard {sb.id}: {e}")
+
+        storage.save_project(project)
+    except Exception as e:
+        logger.error(f"Failed to generate prompts: {e}")
+
+
 @router.post("/projects/{project_id}/storyboards/split")
-async def split_storyboard(project_id: str):
+async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
     project = storage.load_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -224,44 +250,52 @@ async def split_storyboard(project_id: str):
     if not project.sourceText or not project.sourceText.strip():
         raise HTTPException(status_code=400, detail="No source text available")
 
-    settings_obj = storage.load_global_settings()
-    llm_client = LLMClient(settings_obj)
+    # 按行分割文本
+    lines = project.sourceText.split('\n')
+    current_lines = []
+    current_index = len(project.storyboards)
 
-    try:
-        char_dicts = [c.model_dump() for c in project.characters]
-        sb_dicts = await llm_client.split_storyboard(
-            project.sourceText,
-            char_dicts,
-            project=project,
-            global_settings=settings_obj
-        )
+    from models.schemas import Storyboard
 
-        if not sb_dicts:
-            raise HTTPException(status_code=500, detail="No storyboards split from LLM")
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue  # 跳过空行
 
-        from models.schemas import Storyboard
-        char_map = {c.name: c.id for c in project.characters}
+        current_lines.append(line)
 
-        for sb_dict in sb_dicts:
-            char_names = sb_dict.get("characterNames", [])
-            char_ids = [char_map[name] for name in char_names if name in char_map]
-
+        if len(current_lines) >= request.lines_per_storyboard:
+            # 凑够指定行数，创建分镜
             storyboard = Storyboard(
-                index=sb_dict.get("index", len(project.storyboards)),
-                sceneDescription=sb_dict.get("sceneDescription", ""),
-                dialogue=sb_dict.get("dialogue", ""),
-                narration=sb_dict.get("narration", ""),
-                characterIds=char_ids
+                index=current_index,
+                sceneDescription="\n".join(current_lines),
+                dialogue="",
+                narration="",
+                characterIds=[]
             )
             project.storyboards.append(storyboard)
+            current_lines = []
+            current_index += 1
 
-        project.generationProgress.imagesTotal = len(project.storyboards)
-        project.generationProgress.audioTotal = len(project.storyboards)
-        storage.save_project(project)
-        return {"storyboards": project.storyboards}
-    except Exception as e:
-        logger.error(f"Failed to split storyboards: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to split storyboards: {str(e)}")
+    # 处理剩余的行
+    if current_lines:
+        storyboard = Storyboard(
+            index=current_index,
+            sceneDescription="\n".join(current_lines),
+            dialogue="",
+            narration="",
+            characterIds=[]
+        )
+        project.storyboards.append(storyboard)
+
+    project.generationProgress.imagesTotal = len(project.storyboards)
+    project.generationProgress.audioTotal = len(project.storyboards)
+    storage.save_project(project)
+
+    # 自动批量生成提示词
+    await _generate_prompts_for_project(project)
+
+    return {"storyboards": project.storyboards}
 
 @router.post("/projects/{project_id}/generate/image")
 async def generate_image(
@@ -340,6 +374,38 @@ async def generate_audios(project_id: str, request: GenerateAudiosRequest, backg
         background_tasks.add_task(generate_single_audio, project_id, sb_id)
 
     return {"status": "queued", "count": len(to_generate)}
+
+@router.post("/projects/{project_id}/storyboards/generate-prompts", response_model=GeneratePromptsResponse)
+async def generate_storyboard_prompts(project_id: str, request: GeneratePromptsRequest):
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    settings_obj = storage.load_global_settings()
+    llm_client = LLMClient(settings_obj)
+    char_dicts = [c.model_dump() for c in project.characters]
+
+    target_sbs = project.storyboards
+    if request.storyboardIds:
+        target_sbs = [sb for sb in project.storyboards if sb.id in request.storyboardIds]
+
+    updated_count = 0
+    for sb in target_sbs:
+        try:
+            sb.imagePrompt = await llm_client.generate_image_prompt(
+                sb.sceneDescription,
+                char_dicts,
+                project.stylePrompt,
+                project=project,
+                global_settings=settings_obj
+            )
+            updated_count += 1
+        except Exception as e:
+            logger.error(f"Failed to generate prompt for storyboard {sb.id}: {e}")
+
+    storage.save_project(project)
+    return GeneratePromptsResponse(success=True, updated=updated_count)
+
 
 @router.get("/projects/{project_id}/generate/status", response_model=GenerationStatusResponse)
 async def get_generation_status(project_id: str):
