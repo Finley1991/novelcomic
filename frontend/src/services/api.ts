@@ -56,6 +56,42 @@ export interface Storyboard {
 
 export type PromptType = 'character_extraction' | 'storyboard_split' | 'image_prompt';
 
+export type PromptSnippetCategory = 'style' | 'quality' | 'lighting' | 'composition' | 'custom';
+
+export interface PromptSnippet {
+  id: string;
+  name: string;
+  description: string;
+  category: PromptSnippetCategory;
+  content: string;
+  isPreset: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImagePromptTemplate {
+  id: string;
+  name: string;
+  description: string;
+  template: string;
+  snippetIds: string[];
+  isPreset: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RenderImagePromptRequest {
+  scene?: string;
+  characterPrompts?: string;
+  stylePrompt?: string;
+  custom?: string;
+  additionalSnippets?: string[];
+}
+
+export interface RenderImagePromptResponse {
+  renderedPrompt: string;
+}
+
 export interface PromptVariable {
   name: string;
   description: string;
@@ -327,6 +363,34 @@ export const promptApi = {
     { newName }
   ),
   getVariables: (type: PromptType) => api.get<PromptVariable[]>(`/prompts/variables?type=${type}`),
+};
+
+export const imagePromptApi = {
+  // Snippet APIs
+  listSnippets: (category?: PromptSnippetCategory) => api.get<PromptSnippet[]>(
+    `/image-prompts/snippets${category ? `?category=${category}` : ''}`
+  ),
+  getSnippet: (id: string) => api.get<PromptSnippet>(`/image-prompts/snippets/${id}`),
+  createSnippet: (data: { name: string; description: string; category: PromptSnippetCategory; content: string }) =>
+    api.post<PromptSnippet>('/image-prompts/snippets', data),
+  updateSnippet: (id: string, data: Partial<PromptSnippet>) =>
+    api.put<PromptSnippet>(`/image-prompts/snippets/${id}`, data),
+  deleteSnippet: (id: string) => api.delete(`/image-prompts/snippets/${id}`),
+  duplicateSnippet: (id: string, newName: string) =>
+    api.post<PromptSnippet>(`/image-prompts/snippets/${id}/duplicate`, { newName }),
+
+  // Template APIs
+  listTemplates: () => api.get<ImagePromptTemplate[]>('/image-prompts/templates'),
+  getTemplate: (id: string) => api.get<ImagePromptTemplate>(`/image-prompts/templates/${id}`),
+  createTemplate: (data: { name: string; description: string; template: string; snippetIds: string[] }) =>
+    api.post<ImagePromptTemplate>('/image-prompts/templates', data),
+  updateTemplate: (id: string, data: Partial<ImagePromptTemplate>) =>
+    api.put<ImagePromptTemplate>(`/image-prompts/templates/${id}`, data),
+  deleteTemplate: (id: string) => api.delete(`/image-prompts/templates/${id}`),
+  duplicateTemplate: (id: string, newName: string) =>
+    api.post<ImagePromptTemplate>(`/image-prompts/templates/${id}/duplicate`, { newName }),
+  renderTemplate: (id: string, data: RenderImagePromptRequest) =>
+    api.post<RenderImagePromptResponse>(`/image-prompts/templates/${id}/render`, data),
 };
 
 export default api;

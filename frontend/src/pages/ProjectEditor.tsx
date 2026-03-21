@@ -6,9 +6,11 @@ import {
   storyboardApi,
   generationApi,
   promptApi,
+  imagePromptApi,
   type Project,
   type PromptTemplate,
   type PromptType,
+  type ImagePromptTemplate,
 } from '../services/api';
 
 const ProjectEditor: React.FC = () => {
@@ -26,11 +28,13 @@ const ProjectEditor: React.FC = () => {
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<{ [key: string]: string }>({});
   const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
+  const [imagePromptTemplates, setImagePromptTemplates] = useState<ImagePromptTemplate[]>([]);
 
   useEffect(() => {
     if (id) {
       loadProject();
       loadPromptTemplates();
+      loadImagePromptTemplates();
     }
   }, [id]);
 
@@ -61,6 +65,55 @@ const ProjectEditor: React.FC = () => {
       setPromptTemplates(response.data);
     } catch (error) {
       console.error('Failed to load prompt templates:', error);
+    }
+  };
+
+  const loadImagePromptTemplates = async () => {
+    try {
+      const response = await imagePromptApi.listTemplates();
+      setImagePromptTemplates(response.data);
+    } catch (error) {
+      console.error('Failed to load image prompt templates:', error);
+    }
+  };
+
+  const handleUseTemplate = async (storyboardId: string, templateId: string) => {
+    if (!id || !project) return;
+    const storyboard = project.storyboards.find(sb => sb.id === storyboardId);
+    if (!storyboard) return;
+
+    try {
+      // Get character prompts for this storyboard
+      const characterPrompts = storyboard.characterIds
+        .map(charId => project.characters.find(c => c.id === charId)?.characterPrompt)
+        .filter(Boolean)
+        .join(', ');
+
+      const response = await imagePromptApi.renderTemplate(templateId, {
+        scene: storyboard.sceneDescription,
+        characterPrompts,
+        stylePrompt: project.stylePrompt,
+      });
+
+      // Update the prompt
+      const newValue = response.data.renderedPrompt;
+      setEditingPrompt(prev => ({ ...prev, [storyboardId]: newValue }));
+
+      // Save immediately
+      setSavingPrompt(storyboardId);
+      try {
+        await storyboardApi.update(id, storyboardId, { imagePrompt: newValue });
+        await loadProject();
+      } finally {
+        setSavingPrompt(null);
+        setEditingPrompt(prev => {
+          const next = { ...prev };
+          delete next[storyboardId];
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to use template:', error);
     }
   };
 
@@ -432,6 +485,25 @@ const ProjectEditor: React.FC = () => {
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-sm font-medium text-gray-700">画图提示词</label>
                       <div className="flex items-center gap-2">
+                        {imagePromptTemplates.length > 0 && (
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleUseTemplate(sb.id, e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            value=""
+                            className="text-xs border rounded px-2 py-1"
+                          >
+                            <option value="">使用模板...</option>
+                            {imagePromptTemplates.map((tpl) => (
+                              <option key={tpl.id} value={tpl.id}>
+                                {tpl.name} {tpl.isPreset ? '(预设)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         {savingPrompt === sb.id && (
                           <span className="text-xs text-gray-400">保存中...</span>
                         )}
