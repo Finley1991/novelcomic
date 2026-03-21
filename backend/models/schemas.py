@@ -18,6 +18,14 @@ class PromptType(str, Enum):
     STORYBOARD_SPLIT = "storyboard_split"
     IMAGE_PROMPT = "image_prompt"
 
+
+class PromptSnippetCategory(str, Enum):
+    STYLE = "style"
+    QUALITY = "quality"
+    LIGHTING = "lighting"
+    COMPOSITION = "composition"
+    CUSTOM = "custom"
+
 class GenerationStatus(str, Enum):
     PENDING = "pending"
     GENERATING = "generating"
@@ -45,6 +53,28 @@ class PromptTemplate(BaseModel):
     type: PromptType
     systemPrompt: str = ""
     userPrompt: str = ""
+    isPreset: bool = False
+    createdAt: datetime = Field(default_factory=datetime.now)
+    updatedAt: datetime = Field(default_factory=datetime.now)
+
+
+class PromptSnippet(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    category: PromptSnippetCategory
+    content: str
+    isPreset: bool = False
+    createdAt: datetime = Field(default_factory=datetime.now)
+    updatedAt: datetime = Field(default_factory=datetime.now)
+
+
+class ImagePromptTemplate(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    template: str
+    snippetIds: List[str] = Field(default_factory=list)
     isPreset: bool = False
     createdAt: datetime = Field(default_factory=datetime.now)
     updatedAt: datetime = Field(default_factory=datetime.now)
@@ -293,3 +323,48 @@ class GenerationStatusResponse(BaseModel):
 #     status: str
 #     downloadUrl: Optional[str] = None
 #     error: Optional[str] = None
+
+
+# ===== Image Prompt Request/Response Schemas =====
+class CreatePromptSnippetRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = ""
+    category: PromptSnippetCategory
+    content: str
+
+
+class UpdatePromptSnippetRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    category: Optional[PromptSnippetCategory] = None
+    content: Optional[str] = None
+
+
+class CreateImagePromptTemplateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = ""
+    template: str
+    snippetIds: List[str] = Field(default_factory=list)
+
+
+class UpdateImagePromptTemplateRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    template: Optional[str] = None
+    snippetIds: Optional[List[str]] = None
+
+
+class DuplicateRequest(BaseModel):
+    newName: str = Field(..., min_length=1, max_length=100)
+
+
+class RenderImagePromptRequest(BaseModel):
+    scene: Optional[str] = None
+    characterPrompts: Optional[str] = None
+    stylePrompt: Optional[str] = None
+    custom: Optional[str] = None
+    additionalSnippets: Optional[List[str]] = None
+
+
+class RenderImagePromptResponse(BaseModel):
+    renderedPrompt: str
