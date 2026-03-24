@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     jianying_canvas_width: int = 1920
     jianying_canvas_height: int = 1080
     jianying_canvas_ratio: str = "16:9"
+    jianying_draft_path: str = ""
 
     class Config:
         env_file = ".env"

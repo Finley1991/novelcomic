@@ -243,6 +243,7 @@ class JianyingSettings(BaseModel):
     canvasWidth: int = 1920
     canvasHeight: int = 1080
     canvasRatio: str = "16:9"
+    draftPath: str = ""
 
 class GlobalSettings(BaseModel):
     defaultPromptTemplates: Dict[PromptType, str] = Field(default_factory=dict)
@@ -307,22 +308,21 @@ class GeneratePromptsResponse(BaseModel):
     success: bool
     updated: int
 
-# 剪映导出相关 schema 暂时禁用 - 待找到合适参考后重新实现
-# class ExportJianyingRequest(BaseModel):
-#     canvasWidth: Optional[int] = None
-#     canvasHeight: Optional[int] = None
-#     fps: Optional[int] = None
+class ExportJianyingRequest(BaseModel):
+    canvasWidth: Optional[int] = None
+    canvasHeight: Optional[int] = None
+    fps: Optional[int] = None
 
 # Response schemas
 class GenerationStatusResponse(BaseModel):
     images: Dict[str, Any]
     audio: Dict[str, Any]
 
-# class ExportJianyingResponse(BaseModel):
-#     exportId: str
-#     status: str
-#     downloadUrl: Optional[str] = None
-#     error: Optional[str] = None
+class ExportJianyingResponse(BaseModel):
+    exportId: str
+    status: str
+    draftPath: Optional[str] = None
+    error: Optional[str] = None
 
 
 # ===== Image Prompt Request/Response Schemas =====
