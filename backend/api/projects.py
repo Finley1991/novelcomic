@@ -46,6 +46,16 @@ async def get_project(project_id: str):
     project = storage.load_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    # 确保所有必需字段都存在
+    from models.schemas import Scene
+    if not hasattr(project, 'scenes') or project.scenes is None:
+        project.scenes = []
+    # 确保每个 storyboard 都有 sceneId
+    for sb in project.storyboards:
+        if not hasattr(sb, 'sceneId'):
+            sb.sceneId = None
+        if not hasattr(sb, 'characterIds') or sb.characterIds is None:
+            sb.characterIds = []
     return project
 
 @router.put("/projects/{project_id}", response_model=Project)
@@ -166,6 +176,8 @@ async def update_storyboard(project_id: str, sb_id: str, request: UpdateStoryboa
                 project.storyboards[i].narration = request.narration
             if request.characterIds is not None:
                 project.storyboards[i].characterIds = request.characterIds
+            if request.sceneId is not None:
+                project.storyboards[i].sceneId = request.sceneId
             if request.imagePrompt is not None:
                 project.storyboards[i].imagePrompt = request.imagePrompt
             if request.negativePrompt is not None:

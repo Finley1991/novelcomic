@@ -8,11 +8,13 @@ import {
   promptApi,
   imagePromptApi,
   exportApi,
+  sceneApi,
   type Project,
   type PromptTemplate,
   type PromptType,
   type ImagePromptTemplate,
   type Character,
+  type Scene,
 } from '../services/api';
 import { TTS_VOICES, getVoiceLabel } from '../constants/ttsVoices';
 
@@ -24,6 +26,7 @@ const ProjectEditor: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+  const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [savingProjectSettings, setSavingProjectSettings] = useState(false);
@@ -38,13 +41,23 @@ const ProjectEditor: React.FC = () => {
   const [tempCharacterTts, setTempCharacterTts] = useState<{ [charId: string]: Character['ttsConfig'] }>({});
   const [storyboardVoiceFilter, setStoryboardVoiceFilter] = useState<string>('');
   const [bulkVoice, setBulkVoice] = useState<string>('');
+  const [extractingScenes, setExtractingScenes] = useState(false);
+  const [tempScene, setTempScene] = useState<{ [sceneId: string]: Partial<Scene> }>({});
+  const [savingScene, setSavingScene] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
       loadProject();
       loadPromptTemplates();
       loadImagePromptTemplates();
+    } else {
+      setLoading(false);
     }
+    // 最终安全措施：3秒后强制关闭 loading
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+    return () => clearTimeout(safetyTimer);
   }, [id]);
 
   useEffect(() => {
@@ -60,7 +73,20 @@ const ProjectEditor: React.FC = () => {
     if (!id) return;
     try {
       const response = await projectApi.get(id);
-      setProject(response.data);
+      // 向后兼容：确保 scenes 和其他必需字段存在
+      const originalData = response.data || {};
+      // 创建一个新对象，避免直接修改 response.data
+      const projectData: any = {
+        ...originalData,
+        scenes: originalData.scenes || [],
+        characters: originalData.characters || [],
+        storyboards: (originalData.storyboards || []).map((sb: any) => ({
+          ...sb,
+          sceneId: sb.sceneId ?? null,
+          characterIds: sb.characterIds ?? []
+        }))
+      };
+      setProject(projectData);
     } catch (error) {
       console.error('Failed to load project:', error);
     } finally {
@@ -159,6 +185,87 @@ const ProjectEditor: React.FC = () => {
       await loadProject();
     } catch (error) {
       console.error('Failed to extract characters:', error);
+    }
+  };
+
+  const handleExtractScenes = async () => {
+    if (!id) return;
+    setExtractingScenes(true);
+    try {
+      await sceneApi.extract(id);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to extract scenes:', error);
+      alert('提取场景失败，请检查控制台');
+    } finally {
+      setExtractingScenes(false);
+    }
+  };
+
+  const handleTempSceneChange = (sceneId: string, field: 'name' | 'description', value: string) => {
+    setTempScene(prev => ({
+      ...prev,
+      [sceneId]: {
+        ...prev[sceneId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSaveScene = async (sceneId: string) => {
+    if (!id || !project) return;
+    const sceneData = tempScene[sceneId];
+    if (!sceneData) return;
+
+    setSavingScene(sceneId);
+    try {
+      const scene = project.scenes.find(s => s.id === sceneId);
+      if (scene) {
+        await sceneApi.update(id, sceneId, {
+          ...scene,
+          ...sceneData
+        });
+        await loadProject();
+        setTempScene(prev => {
+          const next = { ...prev };
+          delete next[sceneId];
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save scene:', error);
+    } finally {
+      setSavingScene(null);
+    }
+  };
+
+  const handleDeleteScene = async (sceneId: string) => {
+    if (!id) return;
+    try {
+      await sceneApi.delete(id, sceneId);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to delete scene:', error);
+    }
+  };
+
+  const handleStoryboardSceneChange = async (storyboardId: string, sceneId: string | null) => {
+    if (!id) return;
+    try {
+      await storyboardApi.update(id, storyboardId, { sceneId: sceneId || undefined });
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to update storyboard scene:', error);
+    }
+  };
+
+  const handleStoryboardCharactersChange = async (storyboardId: string, characterIds: string[]) => {
+    if (!id) return;
+    try {
+      await storyboardApi.update(id, storyboardId, { characterIds });
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to update storyboard characters:', error);
     }
   };
 
@@ -345,10 +452,11 @@ const ProjectEditor: React.FC = () => {
 
   const steps = [
     { name: '角色管理', onClick: () => setCurrentStep(0) },
-    { name: '剧本拆分', onClick: () => setCurrentStep(1) },
-    { name: '图片生成', onClick: () => setCurrentStep(2) },
-    { name: '配音生成', onClick: () => setCurrentStep(3) },
-    { name: '导出剪映', onClick: () => setCurrentStep(4) },
+    { name: '场景管理', onClick: () => setCurrentStep(1) },
+    { name: '剧本拆分', onClick: () => setCurrentStep(2) },
+    { name: '图片生成', onClick: () => setCurrentStep(3) },
+    { name: '配音生成', onClick: () => setCurrentStep(4) },
+    { name: '导出剪映', onClick: () => setCurrentStep(5) },
   ];
 
   if (loading) {
@@ -395,6 +503,7 @@ const ProjectEditor: React.FC = () => {
           <div className="space-y-4">
             {[
               { key: 'character_extraction' as const, label: '角色提取' },
+              { key: 'scene_extraction' as const, label: '场景提取' },
               { key: 'storyboard_split' as const, label: '分镜拆分' },
               { key: 'image_prompt' as const, label: '图像生成' },
             ].map(({ key: type, label }) => {
@@ -551,6 +660,87 @@ const ProjectEditor: React.FC = () => {
         {currentStep === 1 && (
           <div>
             <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">场景列表</h3>
+              <button
+                onClick={handleExtractScenes}
+                disabled={extractingScenes}
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {extractingScenes ? '提取中...' : '自动提取场景'}
+              </button>
+            </div>
+            <div className="space-y-4">
+              {(project.scenes || []).map((scene) => (
+                <div key={scene.id} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold">{scene.name}</h4>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingSceneId(
+                          editingSceneId === scene.id ? null : scene.id
+                        )}
+                        className="text-blue-500 text-sm hover:text-blue-600"
+                      >
+                        {editingSceneId === scene.id ? '收起' : '编辑'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteScene(scene.id)}
+                        className="text-red-500 text-sm hover:text-red-600"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+
+                  {editingSceneId === scene.id ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">场景名称</label>
+                        <input
+                          type="text"
+                          value={tempScene[scene.id]?.name ?? scene.name}
+                          onChange={(e) => handleTempSceneChange(scene.id, 'name', e.target.value)}
+                          className="w-full border rounded-md px-3 py-2"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">场景描述</label>
+                        <textarea
+                          value={tempScene[scene.id]?.description ?? scene.description}
+                          onChange={(e) => handleTempSceneChange(scene.id, 'description', e.target.value)}
+                          className="w-full border rounded-md px-3 py-2"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => handleSaveScene(scene.id)}
+                          disabled={savingScene === scene.id}
+                          className={`px-4 py-2 rounded-md text-sm font-medium ${
+                            savingScene === scene.id
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                          }`}
+                        >
+                          {savingScene === scene.id ? '保存中...' : '保存'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600">{scene.description}</p>
+                  )}
+                </div>
+              ))}
+              {(!project.scenes || project.scenes.length === 0) && (
+                <p className="text-gray-500">还没有场景，点击上方按钮自动提取</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {currentStep === 2 && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">分镜列表 ({project.storyboards.length})</h3>
               <div className="flex items-center gap-2">
                 <select
@@ -583,6 +773,57 @@ const ProjectEditor: React.FC = () => {
                   {sb.narration && (
                     <p className="text-sm text-green-600 mt-1">旁白: {sb.narration}</p>
                   )}
+
+                  {/* 场景选择 */}
+                  <div className="mt-3">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">关联场景</label>
+                    <select
+                      value={sb.sceneId || ''}
+                      onChange={(e) => handleStoryboardSceneChange(sb.id, e.target.value || null)}
+                      className="w-full border rounded-md px-3 py-2 text-sm"
+                    >
+                      <option value="">-- 无场景 --</option>
+                      {(project.scenes || []).map((scene) => (
+                        <option key={scene.id} value={scene.id}>
+                          {scene.name}
+                        </option>
+                      ))}
+                    </select>
+                    {sb.sceneId && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(project.scenes || []).find(s => s.id === sb.sceneId)?.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 角色选择 */}
+                  <div className="mt-3">
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">关联角色</label>
+                    <div className="flex flex-wrap gap-2">
+                      {project.characters.map((char) => {
+                        const isSelected = sb.characterIds?.includes(char.id) || false;
+                        return (
+                          <button
+                            key={char.id}
+                            onClick={() => {
+                              const newCharIds = isSelected
+                                ? (sb.characterIds || []).filter(id => id !== char.id)
+                                : [...(sb.characterIds || []), char.id];
+                              handleStoryboardCharactersChange(sb.id, newCharIds);
+                            }}
+                            className={`px-3 py-1 rounded-full text-sm ${
+                              isSelected
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {char.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="mt-3 pt-3 border-t">
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-sm font-medium text-gray-700">画图提示词</label>
@@ -644,7 +885,7 @@ const ProjectEditor: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 2 && (
+        {currentStep === 3 && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">图片生成</h3>
@@ -680,7 +921,7 @@ const ProjectEditor: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 3 && (
+        {currentStep === 4 && (
           <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
               <h3 className="text-lg font-semibold">配音生成</h3>
@@ -790,7 +1031,7 @@ const ProjectEditor: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 4 && (
+        {currentStep === 5 && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">导出剪映草稿</h3>

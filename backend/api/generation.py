@@ -41,9 +41,11 @@ async def generate_single_image(project_id: str, sb_id: str):
                 return
 
             storyboard = None
-            for sb in project.storyboards:
+            sb_index = 0
+            for idx, sb in enumerate(project.storyboards):
                 if sb.id == sb_id:
                     storyboard = sb
+                    sb_index = idx
                     break
 
             if not storyboard:
@@ -58,12 +60,11 @@ async def generate_single_image(project_id: str, sb_id: str):
             if not storyboard.imagePrompt:
                 settings_obj = storage.load_global_settings()
                 llm_client = LLMClient(settings_obj)
-                char_dicts = [c.model_dump() for c in characters]
-                storyboard.imagePrompt = await llm_client.generate_image_prompt(
-                    storyboard.sceneDescription,
-                    char_dicts,
-                    project.stylePrompt,
-                    project=project,
+                surrounding_sbs = _get_surrounding_storyboards(project.storyboards, sb_index)
+                storyboard.imagePrompt = await llm_client.generate_image_prompt_enhanced(
+                    storyboard,
+                    project,
+                    surrounding_sbs,
                     global_settings=settings_obj
                 )
 
@@ -218,21 +219,52 @@ async def extract_characters(project_id: str):
         logger.error(f"Failed to extract characters: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
 
+def _auto_associate_scene(scene_description: str, scenes: list) -> Optional[str]:
+    """自动关联场景 - 简单的关键词匹配逻辑"""
+    if not scenes:
+        return None
+
+    scene_desc_lower = scene_description.lower()
+    for scene in scenes:
+        if scene.name.lower() in scene_desc_lower or scene.description.lower() in scene_desc_lower:
+            return scene.id
+    return None
+
+
+def _auto_associate_characters(scene_description: str, characters: list) -> list:
+    """自动关联角色 - 简单的关键词匹配逻辑"""
+    if not characters:
+        return []
+
+    char_ids = []
+    scene_desc_lower = scene_description.lower()
+    for char in characters:
+        if char.name.lower() in scene_desc_lower:
+            char_ids.append(char.id)
+    return char_ids
+
+
+def _get_surrounding_storyboards(storyboards: list, current_index: int, context_count: int = 5) -> list:
+    """获取前后指定数量的分镜"""
+    start = max(0, current_index - context_count)
+    end = min(len(storyboards), current_index + context_count + 1)
+    return storyboards[start:end]
+
+
 async def _generate_prompts_for_project(project: Project):
-    """为项目的所有分镜生成画图提示词"""
+    """为项目的所有分镜生成画图提示词（增强版）"""
     try:
         settings_obj = storage.load_global_settings()
         llm_client = LLMClient(settings_obj)
-        char_dicts = [c.model_dump() for c in project.characters]
 
-        for sb in project.storyboards:
+        for idx, sb in enumerate(project.storyboards):
             if not sb.imagePrompt:
                 try:
-                    sb.imagePrompt = await llm_client.generate_image_prompt(
-                        sb.sceneDescription,
-                        char_dicts,
-                        project.stylePrompt,
-                        project=project,
+                    surrounding_sbs = _get_surrounding_storyboards(project.storyboards, idx)
+                    sb.imagePrompt = await llm_client.generate_image_prompt_enhanced(
+                        sb,
+                        project,
+                        surrounding_sbs,
                         global_settings=settings_obj
                     )
                 except Exception as e:
@@ -268,12 +300,14 @@ async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
 
         if len(current_lines) >= request.lines_per_storyboard:
             # 凑够指定行数，创建分镜
+            scene_desc = "\n".join(current_lines)
             storyboard = Storyboard(
                 index=current_index,
-                sceneDescription="\n".join(current_lines),
+                sceneDescription=scene_desc,
                 dialogue="",
                 narration="",
-                characterIds=[]
+                characterIds=_auto_associate_characters(scene_desc, project.characters),
+                sceneId=_auto_associate_scene(scene_desc, project.scenes)
             )
             project.storyboards.append(storyboard)
             current_lines = []
@@ -281,12 +315,14 @@ async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
 
     # 处理剩余的行
     if current_lines:
+        scene_desc = "\n".join(current_lines)
         storyboard = Storyboard(
             index=current_index,
-            sceneDescription="\n".join(current_lines),
+            sceneDescription=scene_desc,
             dialogue="",
             narration="",
-            characterIds=[]
+            characterIds=_auto_associate_characters(scene_desc, project.characters),
+            sceneId=_auto_associate_scene(scene_desc, project.scenes)
         )
         project.storyboards.append(storyboard)
 
@@ -385,25 +421,25 @@ async def generate_storyboard_prompts(project_id: str, request: GeneratePromptsR
 
     settings_obj = storage.load_global_settings()
     llm_client = LLMClient(settings_obj)
-    char_dicts = [c.model_dump() for c in project.characters]
 
     target_sbs = project.storyboards
     if request.storyboardIds:
         target_sbs = [sb for sb in project.storyboards if sb.id in request.storyboardIds]
 
     updated_count = 0
-    for sb in target_sbs:
+    for target_sb in target_sbs:
         try:
-            sb.imagePrompt = await llm_client.generate_image_prompt(
-                sb.sceneDescription,
-                char_dicts,
-                project.stylePrompt,
-                project=project,
+            sb_index = next((i for i, sb in enumerate(project.storyboards) if sb.id == target_sb.id), 0)
+            surrounding_sbs = _get_surrounding_storyboards(project.storyboards, sb_index)
+            target_sb.imagePrompt = await llm_client.generate_image_prompt_enhanced(
+                target_sb,
+                project,
+                surrounding_sbs,
                 global_settings=settings_obj
             )
             updated_count += 1
         except Exception as e:
-            logger.error(f"Failed to generate prompt for storyboard {sb.id}: {e}")
+            logger.error(f"Failed to generate prompt for storyboard {target_sb.id}: {e}")
 
     storage.save_project(project)
     return GeneratePromptsResponse(success=True, updated=updated_count)

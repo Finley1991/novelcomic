@@ -70,8 +70,17 @@ class StorageManager:
                     data["createdAt"] = datetime.fromisoformat(data["createdAt"].replace("Z", "+00:00"))
                 if "updatedAt" in data and isinstance(data["updatedAt"], str):
                     data["updatedAt"] = datetime.fromisoformat(data["updatedAt"].replace("Z", "+00:00"))
+                # 向后兼容：确保 scenes 字段存在
+                if "scenes" not in data:
+                    data["scenes"] = []
+                # 向后兼容：确保 storyboard 有 sceneId 字段
+                if "storyboards" in data:
+                    for sb in data["storyboards"]:
+                        if "sceneId" not in sb:
+                            sb["sceneId"] = None
                 return Project(**data)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to load project {project_id}: {e}")
             return None
 
     def save_project(self, project: Project):

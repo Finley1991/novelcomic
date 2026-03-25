@@ -4,6 +4,61 @@
 
 ### 2026-03-25
 
+#### 场景提取与增强图片提示词生成功能
+- **场景自动提取**
+  - 新增 `Scene` 数据模型：包含 id、name、description、createdAt、updatedAt
+  - 新增场景提取提示词模版：4个预设模版 (default/verbose/visual/detailed)
+  - 新增独立的"场景管理"步骤（步骤 1），与角色管理并列
+  - 场景列表支持编辑、删除操作
+  - 场景提取按钮添加 loading 状态和错误提示
+
+- **分镜自动关联场景与角色**
+  - `Storyboard` 模型新增 `sceneId` 字段
+  - 分镜拆分时自动通过关键词匹配关联场景
+  - 分镜拆分时自动通过关键词匹配关联角色
+  - 分镜编辑界面显示场景下拉选择器
+  - 分镜编辑界面显示角色多选按钮
+
+- **增强版图片提示词生成**
+  - 新增 `generate_image_prompt_enhanced` 方法
+  - 结合分镜描述 + 角色描述 + 场景描述 + 前后5个分镜（共11个）上下文
+  - 首尾分镜自动处理：首分镜只用后面5个，尾分镜只用前面5个
+  - `_get_surrounding_storyboards` 辅助函数获取上下文分镜
+
+- **向后兼容处理**
+  - 后端 `load_project` 自动补全缺失的 `scenes` 字段
+  - 后端自动补全旧分镜缺失的 `sceneId` 字段
+  - 前端加载项目时重建数据结构，确保所有必需字段存在
+  - 前端所有访问 `project.scenes` 的地方使用安全访问 `(project.scenes || [])`
+
+#### 技术改进
+- `PromptType` 枚举新增 `SCENE_EXTRACTION`
+- `Project` 模型新增 `scenes: List[Scene]` 字段
+- `UpdateStoryboardRequest` 新增 `sceneId` 字段
+- 新增场景管理 API 端点：`/api/projects/{projectId}/scenes/*`
+- 新增 `sceneApi` 前端 API 封装
+- 前端 ProjectEditor 步骤从 5 个扩展到 6 个（新增场景管理）
+- 修复前端"一直显示加载中"问题，添加多层容错和安全措施
+
+#### 文件清单
+**新增文件:**
+- `backend/api/scenes.py` - 场景管理 API 端点
+
+**修改文件:**
+- `backend/models/schemas.py` - 新增 Scene、更新 Project/Storyboard/PromptType
+- `backend/core/prompt_templates.py` - 新增 SCENE_EXTRACTION 预设模版和变量
+- `backend/main.py` - 注册 scenes 路由
+- `backend/core/llm.py` - 新增 extract_scenes 和 generate_image_prompt_enhanced
+- `backend/core/ollama.py` - 新增场景提取和增强版提示词生成
+- `backend/core/openai_client.py` - 新增场景提取和增强版提示词生成
+- `backend/api/generation.py` - 自动关联逻辑、增强版提示词生成
+- `backend/api/projects.py` - update_storyboard 支持 sceneId、get_project 数据兼容
+- `backend/core/storage.py` - load_project 向后兼容处理
+- `frontend/src/services/api.ts` - 新增 Scene 类型、sceneApi、更新相关类型
+- `frontend/src/pages/ProjectEditor.tsx` - 场景管理 UI、分镜场景/角色关联
+
+### 2026-03-25
+
 #### TTS 音色配置功能全面升级
 - **更多音色选项**
   - 从 6 个音色扩展到 **24 个** Azure TTS 音色

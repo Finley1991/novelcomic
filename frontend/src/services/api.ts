@@ -7,6 +7,14 @@ const api = axios.create({
   },
 });
 
+export interface Scene {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -42,6 +50,7 @@ export interface Storyboard {
   dialogue: string;
   narration: string;
   characterIds: string[];
+  sceneId?: string;
   imagePrompt: string;
   negativePrompt: string;
   imagePath?: string;
@@ -55,7 +64,7 @@ export interface Storyboard {
   ttsConfig?: TTSConfig;  // 分镜独立音色配置
 }
 
-export type PromptType = 'character_extraction' | 'storyboard_split' | 'image_prompt';
+export type PromptType = 'character_extraction' | 'storyboard_split' | 'image_prompt' | 'scene_extraction';
 
 export type PromptSnippetCategory = 'style' | 'quality' | 'lighting' | 'composition' | 'custom';
 
@@ -123,6 +132,7 @@ export interface Project {
   useCustomPrompts: boolean;
   projectPromptTemplates: Partial<Record<PromptType, string>>;
   characters: Character[];
+  scenes: Scene[];
   storyboards: Storyboard[];
 }
 
@@ -292,6 +302,17 @@ export const characterApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   }
+};
+
+export const sceneApi = {
+  extract: (projectId: string) =>
+    api.post(`/projects/${projectId}/scenes/extract`),
+  list: (projectId: string) =>
+    api.get<Scene[]>(`/projects/${projectId}/scenes`),
+  update: (projectId: string, sceneId: string, data: Partial<Scene>) =>
+    api.put<Scene>(`/projects/${projectId}/scenes/${sceneId}`, data),
+  delete: (projectId: string, sceneId: string) =>
+    api.delete(`/projects/${projectId}/scenes/${sceneId}`),
 };
 
 export const storyboardApi = {
