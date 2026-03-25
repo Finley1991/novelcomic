@@ -17,6 +17,7 @@ class PromptType(str, Enum):
     CHARACTER_EXTRACTION = "character_extraction"
     STORYBOARD_SPLIT = "storyboard_split"
     IMAGE_PROMPT = "image_prompt"
+    SCENE_EXTRACTION = "scene_extraction"
 
 
 class PromptSnippetCategory(str, Enum):
@@ -96,6 +97,14 @@ class Character(BaseModel):
     loraWeight: float = 0.8
     ttsConfig: Optional[TTSConfig] = None
 
+
+class Scene(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    createdAt: datetime = Field(default_factory=datetime.now)
+    updatedAt: datetime = Field(default_factory=datetime.now)
+
 class Storyboard(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     index: int = 0
@@ -103,6 +112,7 @@ class Storyboard(BaseModel):
     dialogue: str = ""
     narration: str = ""
     characterIds: List[str] = Field(default_factory=list)
+    sceneId: Optional[str] = None
     imagePrompt: str = ""
     negativePrompt: str = ""
     imagePath: Optional[str] = None
@@ -135,6 +145,7 @@ class Project(BaseModel):
     projectPromptTemplates: Dict[PromptType, str] = Field(default_factory=dict)
     generationProgress: GenerationProgress = Field(default_factory=GenerationProgress)
     characters: List[Character] = Field(default_factory=list)
+    scenes: List[Scene] = Field(default_factory=list)
     storyboards: List[Storyboard] = Field(default_factory=list)
 
 class ComfyUINodeMappings(BaseModel):
@@ -284,6 +295,7 @@ class UpdateStoryboardRequest(BaseModel):
     dialogue: Optional[str] = None
     narration: Optional[str] = None
     characterIds: Optional[List[str]] = None
+    sceneId: Optional[str] = None
     imagePrompt: Optional[str] = None
     negativePrompt: Optional[str] = None
     motion: Optional[MotionConfig] = None
