@@ -21,6 +21,7 @@ const PromptManager: React.FC = () => {
     character_extraction: '角色提取',
     storyboard_split: '分镜拆分（旧版）',
     image_prompt: '图像生成',
+    scene_extraction: '场景提取',
   };
 
   useEffect(() => {

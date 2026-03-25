@@ -120,6 +120,26 @@ export interface PromptTemplate {
   updatedAt: string;
 }
 
+export interface GenerationProgress {
+  imagesCompleted: number;
+  imagesTotal: number;
+  audioCompleted: number;
+  audioTotal: number;
+  lastSavedAt?: string;
+}
+
+export interface GenerationStatusItem {
+  completed: number;
+  total: number;
+  inProgress: string[];
+  failed: Array<{ id: string; error?: string }>;
+}
+
+export interface GenerationStatusResponse {
+  images: GenerationStatusItem;
+  audio: GenerationStatusItem;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -131,6 +151,7 @@ export interface Project {
   negativePrompt: string;
   useCustomPrompts: boolean;
   projectPromptTemplates: Partial<Record<PromptType, string>>;
+  generationProgress: GenerationProgress;
   characters: Character[];
   scenes: Scene[];
   storyboards: Storyboard[];

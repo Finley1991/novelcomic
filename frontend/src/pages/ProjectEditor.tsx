@@ -16,7 +16,7 @@ import {
   type Character,
   type Scene,
 } from '../services/api';
-import { TTS_VOICES, getVoiceLabel } from '../constants/ttsVoices';
+import { TTS_VOICES } from '../constants/ttsVoices';
 
 const ProjectEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,11 +39,19 @@ const ProjectEditor: React.FC = () => {
   const [exportResult, setExportResult] = useState<{ success: boolean; message: string } | null>(null);
   const [savingCharacterTts, setSavingCharacterTts] = useState<string | null>(null);
   const [tempCharacterTts, setTempCharacterTts] = useState<{ [charId: string]: Character['ttsConfig'] }>({});
-  const [storyboardVoiceFilter, setStoryboardVoiceFilter] = useState<string>('');
   const [bulkVoice, setBulkVoice] = useState<string>('');
+  const [extractingCharacters, setExtractingCharacters] = useState(false);
   const [extractingScenes, setExtractingScenes] = useState(false);
   const [tempScene, setTempScene] = useState<{ [sceneId: string]: Partial<Scene> }>({});
   const [savingScene, setSavingScene] = useState<string | null>(null);
+  const [splittingStoryboards, setSplittingStoryboards] = useState(false);
+  const [splitProgress, setSplitProgress] = useState(0);
+  const [splitStatusText, setSplitStatusText] = useState('');
+  const [generatingPrompts, setGeneratingPrompts] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<{
+    images?: { completed: number; total: number };
+    audio?: { completed: number; total: number };
+  } | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -80,6 +88,12 @@ const ProjectEditor: React.FC = () => {
         ...originalData,
         scenes: originalData.scenes || [],
         characters: originalData.characters || [],
+        generationProgress: originalData.generationProgress || {
+          imagesCompleted: 0,
+          imagesTotal: 0,
+          audioCompleted: 0,
+          audioTotal: 0
+        },
         storyboards: (originalData.storyboards || []).map((sb: any) => ({
           ...sb,
           sceneId: sb.sceneId ?? null,
@@ -173,6 +187,11 @@ const ProjectEditor: React.FC = () => {
     if (!id) return;
     try {
       await loadProject();
+      const response = await generationApi.getStatus(id);
+      setGenerationStatus({
+        images: response.data.images,
+        audio: response.data.audio
+      });
     } catch (error) {
       console.error('Failed to check status:', error);
     }
@@ -180,11 +199,15 @@ const ProjectEditor: React.FC = () => {
 
   const handleExtractCharacters = async () => {
     if (!id) return;
+    setExtractingCharacters(true);
     try {
       await characterApi.extract(id);
       await loadProject();
     } catch (error) {
       console.error('Failed to extract characters:', error);
+      alert('提取角色失败，请检查控制台');
+    } finally {
+      setExtractingCharacters(false);
     }
   };
 
@@ -270,12 +293,158 @@ const ProjectEditor: React.FC = () => {
   };
 
   const handleSplitStoryboard = async () => {
-    if (!id) return;
+    if (!id || !project) return;
+
+    const initialStoryboardCount = project.storyboards.length;
+    setSplittingStoryboards(true);
+    setSplitProgress(0);
+    setSplitStatusText('正在拆分剧本...');
+
+    let progressInterval: number | null = null;
+
     try {
+      // 先调用拆分 API
       await storyboardApi.split(id, linesPerStoryboard);
-      await loadProject();
+
+      // 开始轮询获取进度
+      let pollCount = 0;
+      const maxPolls = 300; // 最多轮询 5 分钟 (300 * 1秒)
+
+      progressInterval = window.setInterval(async () => {
+        pollCount++;
+        try {
+          const response = await projectApi.get(id);
+          const currentProject = response.data;
+          setProject(currentProject);
+
+          const totalStoryboards = currentProject.storyboards.length;
+          const newStoryboards = totalStoryboards - initialStoryboardCount;
+
+          if (newStoryboards > 0) {
+            const storyboardsWithPrompts = currentProject.storyboards.filter(
+              (sb: any) => sb.imagePrompt && sb.imagePrompt.length > 0
+            ).length;
+
+            const promptsToGenerate = totalStoryboards - initialStoryboardCount;
+            const promptsGenerated = storyboardsWithPrompts - initialStoryboardCount;
+
+            if (promptsToGenerate > 0) {
+              const promptProgress = Math.min(100, Math.round((promptsGenerated / promptsToGenerate) * 80));
+              const splitProgress = Math.min(20, Math.round((newStoryboards / promptsToGenerate) * 20));
+
+              if (promptsGenerated > 0) {
+                setSplitStatusText(`正在生成提示词... (${promptsGenerated}/${promptsToGenerate})`);
+              } else {
+                setSplitStatusText(`正在拆分剧本... (${newStoryboards}/${promptsToGenerate})`);
+              }
+
+              setSplitProgress(splitProgress + promptProgress);
+
+              if (promptsGenerated >= promptsToGenerate) {
+                // 完成！
+                if (progressInterval) clearInterval(progressInterval);
+                setSplitProgress(100);
+                setSplitStatusText('完成！');
+                setTimeout(() => {
+                  setSplittingStoryboards(false);
+                  setSplitProgress(0);
+                  setSplitStatusText('');
+                }, 1000);
+              }
+            }
+          }
+
+          if (pollCount >= maxPolls) {
+            if (progressInterval) clearInterval(progressInterval);
+            setSplittingStoryboards(false);
+            setSplitProgress(0);
+            setSplitStatusText('');
+            alert('拆分超时，请稍后重试');
+          }
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 1000);
+
     } catch (error) {
       console.error('Failed to split storyboard:', error);
+      alert('拆分分镜失败，请检查控制台');
+      setSplittingStoryboards(false);
+      setSplitProgress(0);
+      setSplitStatusText('');
+      if (progressInterval) clearInterval(progressInterval);
+    }
+  };
+
+  const handleGeneratePrompts = async () => {
+    if (!id || !project) return;
+
+    const storyboardsWithoutPrompts = project.storyboards.filter(sb => !sb.imagePrompt || sb.imagePrompt.length === 0);
+    if (storyboardsWithoutPrompts.length === 0) {
+      alert('所有分镜都已有提示词');
+      return;
+    }
+
+    setGeneratingPrompts(true);
+    setSplitProgress(0);
+    setSplitStatusText('正在生成提示词...');
+
+    let progressInterval: number | null = null;
+
+    try {
+      await storyboardApi.generatePrompts(id);
+
+      // 开始轮询获取进度
+      let pollCount = 0;
+      const maxPolls = 300;
+
+      progressInterval = window.setInterval(async () => {
+        pollCount++;
+        try {
+          const response = await projectApi.get(id);
+          const currentProject = response.data;
+          setProject(currentProject);
+
+          const totalToGenerate = storyboardsWithoutPrompts.length;
+          const generated = currentProject.storyboards.filter(
+            (sb: any) => sb.imagePrompt && sb.imagePrompt.length > 0
+          ).length - (project.storyboards.length - totalToGenerate);
+
+          if (generated > 0) {
+            setSplitProgress(Math.min(100, Math.round((generated / totalToGenerate) * 100)));
+            setSplitStatusText(`正在生成提示词... (${generated}/${totalToGenerate})`);
+          }
+
+          if (generated >= totalToGenerate) {
+            if (progressInterval) clearInterval(progressInterval);
+            setSplitProgress(100);
+            setSplitStatusText('完成！');
+            setTimeout(() => {
+              setGeneratingPrompts(false);
+              setSplitProgress(0);
+              setSplitStatusText('');
+            }, 1000);
+          }
+
+          if (pollCount >= maxPolls) {
+            if (progressInterval) clearInterval(progressInterval);
+            setGeneratingPrompts(false);
+            setSplitProgress(0);
+            setSplitStatusText('');
+            alert('生成超时，请稍后重试');
+          }
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 1000);
+
+    } catch (error) {
+      console.error('Failed to generate prompts:', error);
+      alert('生成提示词失败，请检查控制台');
+      setGeneratingPrompts(false);
+      setSplitProgress(0);
+      setSplitStatusText('');
+      if (progressInterval) clearInterval(progressInterval);
     }
   };
 
@@ -558,9 +727,10 @@ const ProjectEditor: React.FC = () => {
               <h3 className="text-lg font-semibold">角色列表</h3>
               <button
                 onClick={handleExtractCharacters}
-                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                disabled={extractingCharacters}
+                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                自动提取角色
+                {extractingCharacters ? '提取中...' : '自动提取角色'}
               </button>
             </div>
             <div className="space-y-4">
@@ -746,7 +916,8 @@ const ProjectEditor: React.FC = () => {
                 <select
                   value={linesPerStoryboard}
                   onChange={(e) => setLinesPerStoryboard(parseInt(e.target.value))}
-                  className="border rounded-md px-3 py-2 text-sm"
+                  disabled={splittingStoryboards || generatingPrompts}
+                  className="border rounded-md px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value={1}>1行/分镜</option>
                   <option value={2}>2行/分镜</option>
@@ -754,12 +925,36 @@ const ProjectEditor: React.FC = () => {
                 </select>
                 <button
                   onClick={handleSplitStoryboard}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+                  disabled={splittingStoryboards || generatingPrompts}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  自动拆分剧本
+                  {splittingStoryboards ? '正在拆分分镜...' : '自动拆分剧本'}
                 </button>
+                {project.storyboards.length > 0 && (
+                  <button
+                    onClick={handleGeneratePrompts}
+                    disabled={splittingStoryboards || generatingPrompts}
+                    className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingPrompts ? '生成中...' : '批量生成提示词'}
+                  </button>
+                )}
               </div>
             </div>
+            {(splittingStoryboards || generatingPrompts) && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>{splitStatusText || '进度'}</span>
+                  <span>{splitProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all duration-300 ${generatingPrompts ? 'bg-green-500' : 'bg-blue-500'}`}
+                    style={{ width: `${splitProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {project.storyboards.map((sb) => (
                 <div key={sb.id} className="border rounded-lg p-4">
@@ -897,6 +1092,20 @@ const ProjectEditor: React.FC = () => {
                 {polling ? '生成中...' : '批量生成图片'}
               </button>
             </div>
+            {polling && generationStatus?.images && generationStatus.images.total > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>图片生成进度</span>
+                  <span>{generationStatus.images.completed}/{generationStatus.images.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.round((generationStatus.images.completed / generationStatus.images.total) * 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-4 gap-4">
               {project.storyboards.map((sb) => (
                 <div key={sb.id} className="border rounded-lg p-2">
@@ -957,6 +1166,20 @@ const ProjectEditor: React.FC = () => {
                 </button>
               </div>
             </div>
+            {polling && generationStatus?.audio && generationStatus.audio.total > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <span>配音生成进度</span>
+                  <span>{generationStatus.audio.completed}/{generationStatus.audio.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-green-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.round((generationStatus.audio.completed / generationStatus.audio.total) * 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
             <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {project.storyboards.map((sb) => (
                 <div key={sb.id} className="border rounded-lg p-4">
