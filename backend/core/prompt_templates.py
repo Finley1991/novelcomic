@@ -383,6 +383,108 @@ def _get_preset_templates() -> List[PromptTemplate]:
             createdAt=now,
             updatedAt=now
         ),
+
+        # ========== 场景提取预设 ==========
+        PromptTemplate(
+            id="preset_scene_extraction_1",
+            name="通用版",
+            description="通用的场景提取模板",
+            type=PromptType.SCENE_EXTRACTION,
+            systemPrompt="你是一个专业的小说场景提取助手。从小说文本中提取所有主要场景。",
+            userPrompt="""从以下小说文本中提取所有主要场景。对每个场景提供：
+1. name: 场景名称（简洁描述性名称，如"森林中的小屋"）
+2. description: 场景详细视觉描述（用于AI绘画的详细描述）
+
+仅返回JSON数组，格式如下：
+[
+  {
+    "name": "场景名称",
+    "description": "详细的视觉描述"
+  }
+]
+
+小说文本：
+{chunk}
+""",
+            isPreset=True,
+            createdAt=now,
+            updatedAt=now
+        ),
+        PromptTemplate(
+            id="preset_scene_extraction_2",
+            name="动漫风格",
+            description="注重动漫化视觉特征的场景提取",
+            type=PromptType.SCENE_EXTRACTION,
+            systemPrompt="你是一个专业的动漫场景设计助手。从小说文本中提取场景，注重动漫化的视觉特征。",
+            userPrompt="""从以下小说文本中提取所有主要场景，以动漫风格进行描述。对每个场景提供：
+1. name: 场景名称（简洁描述性名称，如"森林中的小屋"）
+2. description: 场景详细视觉描述（包含动漫风格的色彩、光影、构图等）
+
+仅返回JSON数组，格式如下：
+[
+  {
+    "name": "场景名称",
+    "description": "动漫风格的详细视觉描述"
+  }
+]
+
+小说文本：
+{chunk}
+""",
+            isPreset=True,
+            createdAt=now,
+            updatedAt=now
+        ),
+        PromptTemplate(
+            id="preset_scene_extraction_3",
+            name="写实风格",
+            description="注重真实场景描写的场景提取",
+            type=PromptType.SCENE_EXTRACTION,
+            systemPrompt="你是一个专业的电影场景设计助手。从小说文本中提取场景，注重真实的场景描写。",
+            userPrompt="""从以下小说文本中提取所有主要场景，以写实风格进行描述。对每个场景提供：
+1. name: 场景名称（简洁描述性名称，如"森林中的小屋"）
+2. description: 场景详细视觉描述（包含真实的光影、材质、建筑细节等）
+
+仅返回JSON数组，格式如下：
+[
+  {
+    "name": "场景名称",
+    "description": "写实风格的详细视觉描述"
+  }
+]
+
+小说文本：
+{chunk}
+""",
+            isPreset=True,
+            createdAt=now,
+            updatedAt=now
+        ),
+        PromptTemplate(
+            id="preset_scene_extraction_4",
+            name="古风/武侠",
+            description="适合古风/武侠小说的场景提取",
+            type=PromptType.SCENE_EXTRACTION,
+            systemPrompt="你是一个专业的古风小说场景设计助手。从小说文本中提取武侠/古风场景。",
+            userPrompt="""从以下小说文本中提取所有主要场景，以古风/武侠风格进行描述。对每个场景提供：
+1. name: 场景名称（简洁描述性名称，如"山间凉亭"）
+2. description: 场景详细视觉描述（包含古风建筑、山水、园林、武器等元素）
+
+仅返回JSON数组，格式如下：
+[
+  {
+    "name": "场景名称",
+    "description": "古风风格的详细视觉描述"
+  }
+]
+
+小说文本：
+{chunk}
+""",
+            isPreset=True,
+            createdAt=now,
+            updatedAt=now
+        ),
     ]
 
 
@@ -429,6 +531,14 @@ def _get_variables_for_type(prompt_type: PromptType) -> List[PromptVariable]:
                 name="style_prompt",
                 description="风格提示词",
                 example="anime style..."
+            )
+        ]
+    elif prompt_type == PromptType.SCENE_EXTRACTION:
+        return [
+            PromptVariable(
+                name="chunk",
+                description="当前处理的小说文本片段",
+                example="第一章 初遇..."
             )
         ]
     return []
