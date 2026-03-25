@@ -74,6 +74,41 @@ class LLMClient:
             )
         return scene_description
 
+    async def extract_scenes(
+        self,
+        novel_text: str,
+        project: Optional[Any] = None,
+        global_settings: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        return await self._client.extract_scenes(novel_text, project, global_settings)
+
+    async def generate_image_prompt_enhanced(
+        self,
+        storyboard: Any,
+        project: Any,
+        surrounding_storyboards: List[Any],
+        global_settings: Optional[Any] = None
+    ) -> str:
+        if hasattr(self._client, 'generate_image_prompt_enhanced'):
+            return await self._client.generate_image_prompt_enhanced(
+                storyboard,
+                project,
+                surrounding_storyboards,
+                global_settings
+            )
+        # 降级到普通版本
+        from models.schemas import Character
+        char_map = {c.id: c for c in project.characters}
+        characters = [char_map[cid] for cid in storyboard.characterIds if cid in char_map]
+        char_dicts = [c.model_dump() for c in characters]
+        return await self.generate_image_prompt(
+            storyboard.sceneDescription,
+            char_dicts,
+            project.stylePrompt,
+            project,
+            global_settings
+        )
+
     async def test_connection(self) -> dict:
         """Test the LLM connection with a simple prompt"""
         test_prompt = "请用一句话介绍你自己。"

@@ -192,3 +192,115 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Failed to generate image prompt: {e}")
             return scene_description
+
+    async def extract_scenes(
+        self,
+        novel_text: str,
+        project: Optional[Any] = None,
+        global_settings: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        chunks = self._chunk_text(novel_text)
+        all_scenes = []
+        seen_names = set()
+
+        from models.schemas import PromptType
+        template = prompt_template_manager.get_resolved_template(
+            PromptType.SCENE_EXTRACTION,
+            project,
+            global_settings
+        )
+
+        for chunk in chunks:
+            system_prompt, user_prompt = prompt_template_manager.render_template(
+                template,
+                chunk=chunk
+            )
+
+            try:
+                response = await self.generate(user_prompt, system_prompt)
+                logger.info(f"Raw scene extraction response: {response[:500]}...")
+
+                # 移除可能的 markdown 代码块标记
+                response = response.strip()
+                if response.startswith("```json"):
+                    response = response[7:]
+                if response.startswith("```"):
+                    response = response[3:]
+                if response.endswith("```"):
+                    response = response[:-3]
+                response = response.strip()
+
+                json_start = response.find("[")
+                json_end = response.rfind("]") + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response[json_start:json_end]
+                    scenes = json.loads(json_str)
+                    for scene in scenes:
+                        name = scene.get("name", "")
+                        if name and name not in seen_names:
+                            seen_names.add(name)
+                            all_scenes.append(scene)
+            except Exception as e:
+                logger.error(f"Failed to extract scenes from chunk: {e}")
+
+        return all_scenes
+
+    async def generate_image_prompt_enhanced(
+        self,
+        storyboard: Any,
+        project: Any,
+        surrounding_storyboards: List[Any],
+        global_settings: Optional[Any] = None
+    ) -> str:
+        from models.schemas import PromptType
+
+        template = prompt_template_manager.get_resolved_template(
+            PromptType.IMAGE_PROMPT,
+            project,
+            global_settings
+        )
+
+        # 构建角色信息
+        char_map = {c.id: c for c in project.characters}
+        characters = [char_map[cid] for cid in storyboard.characterIds if cid in char_map]
+        char_info = ""
+        if characters:
+            char_info = "角色提示词：\n" + "\n".join([f"- {c.name}: {c.characterPrompt}" for c in characters])
+
+        # 构建场景信息
+        scene_info = ""
+        if storyboard.sceneId:
+            scene = next((s for s in project.scenes if s.id == storyboard.sceneId), None)
+            if scene:
+                scene_info = f"场景描述：{scene.description}"
+
+        # 构建上下文分镜信息
+        context_info = ""
+        if surrounding_storyboards:
+            current_idx = next((i for i, sb in enumerate(surrounding_storyboards) if sb.id == storyboard.id), 0)
+            context_info = "上下文分镜：\n"
+            for i, sb in enumerate(surrounding_storyboards):
+                pos = "当前" if i == current_idx else ("前" if i < current_idx else "后")
+                context_info += f"- [{pos}] {sb.sceneDescription[:100]}...\n"
+
+        # 构建完整的 style_prompt
+        style_prompt = project.stylePrompt
+        if scene_info:
+            style_prompt = f"{style_prompt}, {scene_info}" if style_prompt else scene_info
+
+        system_prompt, user_prompt = prompt_template_manager.render_template(
+            template,
+            scene_description=storyboard.sceneDescription,
+            characters=char_info,
+            style_prompt=style_prompt
+        )
+
+        # 添加上下文到 user_prompt
+        if context_info:
+            user_prompt = f"{context_info}\n\n{user_prompt}"
+
+        try:
+            return await self.generate(user_prompt, system_prompt)
+        except Exception as e:
+            logger.error(f"Failed to generate enhanced image prompt: {e}")
+            return storyboard.sceneDescription
