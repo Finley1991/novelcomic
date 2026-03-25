@@ -143,9 +143,11 @@ async def generate_single_audio(project_id: str, sb_id: str):
             settings_obj = storage.load_global_settings()
             tts_client = TTSClient(settings_obj)
 
-            # 获取角色 TTS 配置
+            # 获取 TTS 配置：优先使用分镜独立配置，其次使用角色配置
             tts_config = None
-            if storyboard.characterIds:
+            if hasattr(storyboard, 'ttsConfig') and storyboard.ttsConfig:
+                tts_config = storyboard.ttsConfig
+            elif storyboard.characterIds:
                 char_map = {c.id: c for c in project.characters}
                 for char_id in storyboard.characterIds:
                     if char_id in char_map:

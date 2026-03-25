@@ -52,6 +52,7 @@ export interface Storyboard {
   audioStatus: 'pending' | 'generating' | 'completed' | 'failed';
   audioError?: string;
   motion: MotionConfig;
+  ttsConfig?: TTSConfig;  // 分镜独立音色配置
 }
 
 export type PromptType = 'character_extraction' | 'storyboard_split' | 'image_prompt';

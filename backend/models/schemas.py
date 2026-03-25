@@ -113,6 +113,7 @@ class Storyboard(BaseModel):
     audioStatus: GenerationStatus = GenerationStatus.PENDING
     audioError: Optional[str] = None
     motion: MotionConfig = Field(default_factory=MotionConfig)
+    ttsConfig: Optional[TTSConfig] = None  # 分镜独立音色配置
 
 class GenerationProgress(BaseModel):
     imagesCompleted: int = 0
@@ -286,6 +287,7 @@ class UpdateStoryboardRequest(BaseModel):
     imagePrompt: Optional[str] = None
     negativePrompt: Optional[str] = None
     motion: Optional[MotionConfig] = None
+    ttsConfig: Optional[TTSConfig] = None
 
 class ReorderStoryboardsRequest(BaseModel):
     storyboardIds: List[str]

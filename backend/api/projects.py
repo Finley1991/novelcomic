@@ -172,6 +172,8 @@ async def update_storyboard(project_id: str, sb_id: str, request: UpdateStoryboa
                 project.storyboards[i].negativePrompt = request.negativePrompt
             if request.motion is not None:
                 project.storyboards[i].motion = request.motion
+            if hasattr(request, 'ttsConfig') and request.ttsConfig is not None:
+                project.storyboards[i].ttsConfig = request.ttsConfig
             storage.save_project(project)
             return project.storyboards[i]
     raise HTTPException(status_code=404, detail="Storyboard not found")

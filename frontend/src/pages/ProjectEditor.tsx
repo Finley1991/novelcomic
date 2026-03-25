@@ -12,7 +12,9 @@ import {
   type PromptTemplate,
   type PromptType,
   type ImagePromptTemplate,
+  type Character,
 } from '../services/api';
+import { TTS_VOICES, getVoiceLabel } from '../constants/ttsVoices';
 
 const ProjectEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +34,10 @@ const ProjectEditor: React.FC = () => {
   const [imagePromptTemplates, setImagePromptTemplates] = useState<ImagePromptTemplate[]>([]);
   const [exportingJianying, setExportingJianying] = useState(false);
   const [exportResult, setExportResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [savingCharacterTts, setSavingCharacterTts] = useState<string | null>(null);
+  const [tempCharacterTts, setTempCharacterTts] = useState<{ [charId: string]: Character['ttsConfig'] }>({});
+  const [storyboardVoiceFilter, setStoryboardVoiceFilter] = useState<string>('');
+  const [bulkVoice, setBulkVoice] = useState<string>('');
 
   useEffect(() => {
     if (id) {
@@ -255,6 +261,88 @@ const ProjectEditor: React.FC = () => {
     }
   };
 
+  const handleSaveCharacterTts = async (charId: string) => {
+    if (!id || !project) return;
+    const ttsConfig = tempCharacterTts[charId];
+    if (!ttsConfig) return;
+
+    setSavingCharacterTts(charId);
+    try {
+      const char = project.characters.find(c => c.id === charId);
+      if (char) {
+        await characterApi.update(id, charId, {
+          ...char,
+          ttsConfig
+        });
+        await loadProject();
+        setTempCharacterTts(prev => {
+          const next = { ...prev };
+          delete next[charId];
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save character TTS config:', error);
+    } finally {
+      setSavingCharacterTts(null);
+    }
+  };
+
+  const handleTempCharacterTtsChange = (charId: string, field: 'voice' | 'rate' | 'pitch', value: any) => {
+    setTempCharacterTts(prev => {
+      const current = prev[charId] || {
+        voice: 'zh-CN-XiaoxiaoNeural',
+        rate: 1.0,
+        pitch: 0
+      };
+      return {
+        ...prev,
+        [charId]: {
+          ...current,
+          [field]: value
+        }
+      };
+    });
+  };
+
+  const handleApplyBulkVoiceToStoryboards = async (voice: string) => {
+    if (!id || !project) return;
+    try {
+      // 为所有分镜应用相同的声音
+      await Promise.all(
+        project.storyboards.map(sb =>
+          storyboardApi.update(id, sb.id, {
+            ttsConfig: {
+              voice,
+              rate: 1.0,
+              pitch: 0
+            }
+          })
+        )
+      );
+      await loadProject();
+      setBulkVoice('');
+    } catch (error) {
+      console.error('Failed to apply bulk voice:', error);
+    }
+  };
+
+  const handleStoryboardVoiceChange = async (storyboardId: string, voice: string) => {
+    if (!id) return;
+    try {
+      await storyboardApi.update(id, storyboardId, {
+        ttsConfig: {
+          voice,
+          rate: 1.0,
+          pitch: 0
+        }
+      });
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to update storyboard voice:', error);
+    }
+  };
+
   const steps = [
     { name: '角色管理', onClick: () => setCurrentStep(0) },
     { name: '剧本拆分', onClick: () => setCurrentStep(1) },
@@ -384,62 +472,50 @@ const ProjectEditor: React.FC = () => {
 
                   {editingCharacterId === char.id && (
                     <div className="mt-4 pt-4 border-t space-y-4">
-                      <h5 className="font-medium text-sm">声音配置</h5>
+                      <div className="flex justify-between items-center">
+                        <h5 className="font-medium text-sm">声音配置</h5>
+                        <button
+                          onClick={() => handleSaveCharacterTts(char.id)}
+                          disabled={savingCharacterTts === char.id || !tempCharacterTts[char.id]}
+                          className={`px-4 py-2 rounded-md text-sm font-medium ${
+                            savingCharacterTts === char.id || !tempCharacterTts[char.id]
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                          }`}
+                        >
+                          {savingCharacterTts === char.id ? '保存中...' : '保存'}
+                        </button>
+                      </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">声音</label>
                         <select
-                          value={char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural'}
+                          value={tempCharacterTts[char.id]?.voice || char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural'}
                           onChange={(e) => {
-                            const newTtsConfig = {
-                              voice: e.target.value,
-                              rate: char.ttsConfig?.rate || 1.0,
-                              pitch: char.ttsConfig?.pitch || 0
-                            };
-                            setProject({
-                              ...project,
-                              characters: project.characters.map(c =>
-                                c.id === char.id
-                                  ? { ...c, ttsConfig: newTtsConfig }
-                                  : c
-                              )
-                            });
+                            handleTempCharacterTtsChange(char.id, 'voice', e.target.value);
                           }}
                           className="w-full border rounded-md px-3 py-2"
                         >
-                          <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural (女声)</option>
-                          <option value="zh-CN-YunxiNeural">zh-CN-YunxiNeural (男声)</option>
-                          <option value="zh-CN-YunyangNeural">zh-CN-YunyangNeural (男声)</option>
-                          <option value="zh-CN-XiaoyouNeural">zh-CN-XiaoyouNeural (童声)</option>
-                          <option value="zh-CN-XiaohanNeural">zh-CN-XiaohanNeural (女声)</option>
-                          <option value="zh-CN-YunjianNeural">zh-CN-YunjianNeural (男声)</option>
+                          {TTS_VOICES.map((voice) => (
+                            <option key={voice.value} value={voice.value}>
+                              {voice.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          语速: {(char.ttsConfig?.rate || 1.0).toFixed(1)}x
+                          语速: {(tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0).toFixed(1)}x
                         </label>
                         <input
                           type="range"
                           min="0.5"
                           max="2.0"
                           step="0.1"
-                          value={char.ttsConfig?.rate || 1.0}
+                          value={tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0}
                           onChange={(e) => {
-                            const newTtsConfig = {
-                              voice: char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural',
-                              rate: parseFloat(e.target.value),
-                              pitch: char.ttsConfig?.pitch || 0
-                            };
-                            setProject({
-                              ...project,
-                              characters: project.characters.map(c =>
-                                c.id === char.id
-                                  ? { ...c, ttsConfig: newTtsConfig }
-                                  : c
-                              )
-                            });
+                            handleTempCharacterTtsChange(char.id, 'rate', parseFloat(e.target.value));
                           }}
                           className="w-full"
                         />
@@ -447,28 +523,16 @@ const ProjectEditor: React.FC = () => {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          音调: {char.ttsConfig?.pitch || 0}Hz
+                          音调: {(tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0)}Hz
                         </label>
                         <input
                           type="range"
                           min="-100"
                           max="100"
                           step="1"
-                          value={char.ttsConfig?.pitch || 0}
+                          value={tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0}
                           onChange={(e) => {
-                            const newTtsConfig = {
-                              voice: char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural',
-                              rate: char.ttsConfig?.rate || 1.0,
-                              pitch: parseInt(e.target.value)
-                            };
-                            setProject({
-                              ...project,
-                              characters: project.characters.map(c =>
-                                c.id === char.id
-                                  ? { ...c, ttsConfig: newTtsConfig }
-                                  : c
-                              )
-                            });
+                            handleTempCharacterTtsChange(char.id, 'pitch', parseInt(e.target.value));
                           }}
                           className="w-full"
                         />
@@ -618,15 +682,39 @@ const ProjectEditor: React.FC = () => {
 
         {currentStep === 3 && (
           <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
               <h3 className="text-lg font-semibold">配音生成</h3>
-              <button
-                onClick={handleGenerateAudios}
-                disabled={polling}
-                className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50"
-              >
-                {polling ? '生成中...' : '批量生成配音'}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">批量设置音色:</label>
+                  <select
+                    value={bulkVoice}
+                    onChange={(e) => setBulkVoice(e.target.value)}
+                    className="border rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">-- 选择音色 --</option>
+                    {TTS_VOICES.map((voice) => (
+                      <option key={voice.value} value={voice.value}>
+                        {voice.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => handleApplyBulkVoiceToStoryboards(bulkVoice)}
+                  disabled={!bulkVoice}
+                  className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 disabled:opacity-50 text-sm"
+                >
+                  应用到所有分镜
+                </button>
+                <button
+                  onClick={handleGenerateAudios}
+                  disabled={polling}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {polling ? '生成中...' : '批量生成配音'}
+                </button>
+              </div>
             </div>
             <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {project.storyboards.map((sb) => (
@@ -663,13 +751,28 @@ const ProjectEditor: React.FC = () => {
                     </p>
                   )}
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                    <div className="flex items-center gap-2 flex-1">
+                      <label className="text-xs font-medium text-gray-600">音色:</label>
+                      <select
+                        value={sb.ttsConfig?.voice || ''}
+                        onChange={(e) => handleStoryboardVoiceChange(sb.id, e.target.value)}
+                        className="border rounded px-2 py-1 text-xs flex-1"
+                      >
+                        <option value="">-- 使用角色配置 --</option>
+                        {TTS_VOICES.map((voice) => (
+                          <option key={voice.value} value={voice.value}>
+                            {voice.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     {sb.audioStatus === 'completed' && sb.audioPath ? (
-                      <audio controls className="h-12 flex-1">
+                      <audio controls className="h-12 w-64">
                         <source src={`/data/projects/${id}/${sb.audioPath}`} />
                       </audio>
                     ) : (
-                      <div className="flex-1 text-xs text-gray-400">
-                        状态: {sb.audioStatus}, 路径: {sb.audioPath || '无'}
+                      <div className="text-xs text-gray-400 w-48">
+                        状态: {sb.audioStatus}
                       </div>
                     )}
                     {sb.audioStatus !== 'generating' && (

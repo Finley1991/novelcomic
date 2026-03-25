@@ -4,6 +4,46 @@
 
 ### 2026-03-25
 
+#### TTS 音色配置功能全面升级
+- **更多音色选项**
+  - 从 6 个音色扩展到 **24 个** Azure TTS 音色
+  - 包含女声、男声和童声
+  - 新增 `frontend/src/constants/ttsVoices.ts` 统一管理音色列表
+
+- **角色声音配置体验优化**
+  - 新增「保存」按钮确认修改才保存
+  - 使用 `tempCharacterTts` 暂存修改，避免误操作
+  - 编辑时显示「收起」/「保存」按钮
+
+- **分镜级音色配置**
+  - 每个分镜可独立设置音色
+  - `Storyboard` 模型新增 `ttsConfig` 字段
+  - 优先级：分镜配置 > 角色配置 > 全局默认
+
+- **批量音色设置**
+  - 顶部「批量设置音色」下拉选择器
+  - 「应用到所有分镜」一键批量更新
+  - 修复之前按钮无响应的问题
+
+#### 技术改进
+- `UpdateStoryboardRequest` 新增 `ttsConfig` 字段
+- `update_storyboard` API 正确处理 `ttsConfig` 更新
+- 音频生成逻辑优先使用分镜独立配置
+- 前端 TypeScript 类型完整更新
+
+#### 文件清单
+**新增文件:**
+- `frontend/src/constants/ttsVoices.ts` - 24 个音色选项和辅助函数
+
+**修改文件:**
+- `backend/models/schemas.py` - Storyboard 和 UpdateStoryboardRequest 新增 ttsConfig
+- `backend/api/projects.py` - update_storyboard 支持 ttsConfig 更新
+- `backend/api/generation.py` - 音频生成优先使用分镜 ttsConfig
+- `frontend/src/pages/ProjectEditor.tsx` - 角色保存按钮、分镜音色选择、批量设置
+- `frontend/src/services/api.ts` - Storyboard 类型新增 ttsConfig
+
+### 2026-03-25
+
 #### 剪映草稿导出功能重大升级
 - **集成 pyJianYingDraft 库**
   - 使用 capcut-mate 项目的 pyJianYingDraft 库直接创建和管理剪映草稿
