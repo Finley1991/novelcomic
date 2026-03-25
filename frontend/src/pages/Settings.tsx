@@ -89,7 +89,7 @@ const Settings: React.FC = () => {
     },
     ollama: { apiUrl: '', model: 'llama3', timeout: 120, maxRetries: 2, chunkSize: 4000 },
     tts: { azureKey: '', azureRegion: '', voice: 'zh-CN-XiaoxiaoNeural', rate: 1.0, pitch: 0, timeout: 60, maxRetries: 3, concurrentLimit: 5 },
-    // jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9' },
+    jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9', draftPath: '' },
   });
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -705,6 +705,58 @@ const Settings: React.FC = () => {
                 className="w-full border rounded-md px-3 py-2"
                 placeholder="eastasia"
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">剪映设置</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">剪映草稿保存路径</label>
+              <input
+                type="text"
+                value={settings.jianying?.draftPath || ''}
+                onChange={(e) => setSettings({...settings, jianying: {...settings.jianying, draftPath: e.target.value}})}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="/Users/xxx/Movies/JianyingPro Drafts"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                剪映草稿文件夹路径，导出的草稿将保存到此处
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">画布宽度</label>
+                <input
+                  type="number"
+                  value={settings.jianying?.canvasWidth || 1920}
+                  onChange={(e) => setSettings({...settings, jianying: {...settings.jianying, canvasWidth: parseInt(e.target.value) || 1920}})}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">画布高度</label>
+                <input
+                  type="number"
+                  value={settings.jianying?.canvasHeight || 1080}
+                  onChange={(e) => setSettings({...settings, jianying: {...settings.jianying, canvasHeight: parseInt(e.target.value) || 1080}})}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">画布比例</label>
+              <select
+                value={settings.jianying?.canvasRatio || '16:9'}
+                onChange={(e) => setSettings({...settings, jianying: {...settings.jianying, canvasRatio: e.target.value}})}
+                className="w-full border rounded-md px-3 py-2"
+              >
+                <option value="16:9">16:9 (横屏)</option>
+                <option value="9:16">9:16 (竖屏)</option>
+                <option value="4:3">4:3</option>
+                <option value="1:1">1:1</option>
+              </select>
             </div>
           </div>
         </div>

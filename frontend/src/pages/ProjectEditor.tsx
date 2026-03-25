@@ -7,6 +7,7 @@ import {
   generationApi,
   promptApi,
   imagePromptApi,
+  exportApi,
   type Project,
   type PromptTemplate,
   type PromptType,
@@ -29,6 +30,8 @@ const ProjectEditor: React.FC = () => {
   const [editingPrompt, setEditingPrompt] = useState<{ [key: string]: string }>({});
   const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
   const [imagePromptTemplates, setImagePromptTemplates] = useState<ImagePromptTemplate[]>([]);
+  const [exportingJianying, setExportingJianying] = useState(false);
+  const [exportResult, setExportResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -218,11 +221,46 @@ const ProjectEditor: React.FC = () => {
     }
   };
 
+  const handleExportJianying = async () => {
+    if (!id) return;
+    setExportingJianying(true);
+    setExportResult(null);
+    try {
+      const response = await exportApi.exportJianying(id);
+      if (response.data.status === 'success') {
+        setExportResult({
+          success: true,
+          message: `导出成功！\n草稿ID: ${response.data.exportId}\n保存路径: ${response.data.draftPath}`
+        });
+      } else {
+        setExportResult({
+          success: false,
+          message: `导出失败: ${response.data.error || '未知错误'}`
+        });
+      }
+    } catch (error: any) {
+      console.error('Failed to export jianying:', error);
+      let errorMsg = '导出失败';
+      if (error.response?.data?.detail) {
+        errorMsg = error.response.data.detail;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      setExportResult({
+        success: false,
+        message: errorMsg
+      });
+    } finally {
+      setExportingJianying(false);
+    }
+  };
+
   const steps = [
     { name: '角色管理', onClick: () => setCurrentStep(0) },
     { name: '剧本拆分', onClick: () => setCurrentStep(1) },
     { name: '图片生成', onClick: () => setCurrentStep(2) },
     { name: '配音生成', onClick: () => setCurrentStep(3) },
+    { name: '导出剪映', onClick: () => setCurrentStep(4) },
   ];
 
   if (loading) {
@@ -645,6 +683,79 @@ const ProjectEditor: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {currentStep === 4 && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">导出剪映草稿</h3>
+              <button
+                onClick={handleExportJianying}
+                disabled={exportingJianying}
+                className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 disabled:opacity-50"
+              >
+                {exportingJianying ? '导出中...' : '导出到剪映'}
+              </button>
+            </div>
+
+            {exportResult && (
+              <div className={`mb-6 p-4 rounded-md ${exportResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                <pre className="whitespace-pre-wrap text-sm">{exportResult.message}</pre>
+              </div>
+            )}
+
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h4 className="font-medium mb-4">导出说明</h4>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li>• 将项目中的所有图片和音频导出为剪映草稿</li>
+                <li>• 图片和音频会自动放置在对应的轨道上</li>
+                <li>• 每个分镜的时长根据音频长度自动设置</li>
+                <li>• 导出前请确保已配置剪映草稿保存路径（在设置页面）</li>
+                <li>• 导出后可以在剪映中打开草稿进行进一步编辑</li>
+              </ul>
+            </div>
+
+            <div className="mt-6">
+              <h4 className="font-medium mb-4">项目预览 ({project.storyboards.length} 个分镜)</h4>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {project.storyboards.map((sb) => (
+                  <div key={sb.id} className="flex items-center gap-4 border rounded-lg p-3">
+                    <div className="w-24 h-16 bg-gray-100 rounded flex items-center justify-center flex-shrink-0">
+                      {sb.imageStatus === 'completed' && sb.imagePath ? (
+                        <img
+                          src={`/data/projects/${id}/${sb.imagePath}`}
+                          alt=""
+                          className="w-full h-full object-cover rounded"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-400">
+                          {sb.imageStatus === 'generating' ? '生成中' :
+                           sb.imageStatus === 'failed' ? '失败' : '无图'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm">分镜 {sb.index + 1}</div>
+                      <p className="text-xs text-gray-500 truncate">{sb.sceneDescription}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {sb.audioStatus === 'completed' && sb.audioDuration > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {sb.audioDuration.toFixed(1)}s
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        sb.audioStatus === 'completed' && sb.imageStatus === 'completed' ? 'bg-green-100 text-green-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {sb.audioStatus === 'completed' && sb.imageStatus === 'completed' ? '就绪' : '需完成'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
