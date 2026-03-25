@@ -2,6 +2,51 @@
 
 ## [Unreleased]
 
+### 2026-03-25
+
+#### 剪映草稿导出功能重大升级
+- **集成 pyJianYingDraft 库**
+  - 使用 capcut-mate 项目的 pyJianYingDraft 库直接创建和管理剪映草稿
+  - 完全解决"媒体文件丢失"问题
+  - 自动处理素材路径和时长
+  - 正确添加视频和音频轨道
+  - 支持剪映 5.9+ 格式
+
+- **前端配置修复**
+  - 修复 Vite 代理配置：从端口 8001 改为 8000
+  - 修复前端"一直显示加载中"问题
+
+- **API 端点**
+  - 新增 `POST /api/projects/{projectId}/export/jianying` 导出剪映草稿
+  - 返回 draft_id 和 draft_path
+
+#### 技术改进
+- 新增 `JianyingExporter` 类，完全重写剪映导出逻辑
+- 使用 `DraftFolder.create_draft()` 创建草稿
+- 使用 `VideoMaterial` 和 `AudioMaterial` 处理素材
+- 使用 `VideoSegment` 和 `AudioSegment` 添加片段
+- 音频片段时长自动限制为素材实际时长
+- 图片素材支持任意时长显示
+
+#### 文件清单
+**新增文件:**
+- `backend/core/assets/jianying_template/` - 剪映模板素材目录
+- `docs/superpowers/specs/2026-03-24-jianying-draft-export-design.md` - 设计文档
+- `docs/superpowers/plans/2026-03-24-jianying-draft-export.md` - 实施计划
+
+**修改文件:**
+- `backend/core/jianying_exporter.py` - 完全重写，使用 pyJianYingDraft 库
+- `backend/config.py` - 添加剪映相关配置
+- `backend/models/schemas.py` - 添加 JianyingSettings, ExportJianyingRequest
+- `backend/api/export.py` - 剪映导出 API 端点
+- `backend/main.py` - 启用 export 路由
+- `backend/requirements.txt` - 添加 pymediainfo==7.0.1
+- `frontend/src/services/api.ts` - 启用剪映类型和 API
+- `frontend/src/pages/Settings.tsx` - 添加剪映设置界面
+- `frontend/src/pages/ProjectEditor.tsx` - 添加导出剪映功能
+- `frontend/vite.config.js` - 修复代理端口为 8000
+- `README.md` - 更新功能说明和配置文档
+
 ### 2026-03-20
 
 #### 剧本拆分功能优化

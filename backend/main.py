@@ -10,8 +10,7 @@ logging.basicConfig(
 )
 
 from config import settings, ensure_data_dirs
-from api import projects, generation, comfyui_workflows, settings as settings_api, prompts, image_prompts
-# from api import export  # 剪映导出暂时禁用
+from api import projects, generation, comfyui_workflows, settings as settings_api, prompts, image_prompts, export
 
 app = FastAPI(title="NovelComic API", version="1.0.0")
 
@@ -33,7 +32,7 @@ if data_path.exists():
 # Include routers
 app.include_router(projects.router)
 app.include_router(generation.router)
-# app.include_router(export.router)  # 剪映导出暂时禁用
+app.include_router(export.router)
 app.include_router(comfyui_workflows.router, prefix="/api/comfyui", tags=["comfyui"])
 app.include_router(settings_api.router)
 app.include_router(prompts.router)

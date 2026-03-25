@@ -18,7 +18,7 @@
   - 支持正向提示词前缀/后缀
   - 支持否定提示词覆盖
 - 🔊 AI 配音生成 (Microsoft TTS)
-- ✂️ 一键导出剪映草稿
+- ✂️ 一键导出剪映草稿 (使用 pyJianYingDraft 库，兼容剪映 5.9+)
 - 🔌 支持 HTTP 代理配置
 
 ## 快速开始
@@ -55,9 +55,9 @@ npm run dev
 
 ### 访问应用
 
-- 前端: http://localhost:5175
-- 后端 API: http://localhost:8001
-- API 文档: http://localhost:8001/docs
+- 前端: http://localhost:5173
+- 后端 API: http://localhost:8000
+- API 文档: http://localhost:8000/docs
 
 ## 配置说明
 
@@ -115,6 +115,28 @@ npm run dev
 - Region
 
 可以在应用的"设置"页面配置。
+
+### 剪映草稿导出
+
+剪映草稿导出功能依赖 [capcut-mate](https://github.com/Hommy-master/capcut-mate.git) 项目的 `pyJianYingDraft` 库。
+
+**前置准备:**
+1. 克隆 capcut-mate 项目到本地:
+   ```bash
+   git clone https://github.com/Hommy-master/capcut-mate.git
+   ```
+2. 在 `backend/core/jianying_exporter.py` 中配置 `CAPCUT_MATE_PATH` 指向 capcut-mate 的 src 目录
+
+**配置说明:**
+- 剪映草稿保存路径：在"设置"页面配置剪映草稿文件夹路径
+- 默认画布尺寸：1920x1080 (16:9)，可在设置中修改
+
+**使用流程:**
+1. 完成图片生成和配音生成
+2. 在项目编辑页面点击"导出剪映"
+3. 点击"导出到剪映"按钮
+4. 草稿会自动保存到配置的剪映草稿目录
+5. 在剪映中打开草稿进行进一步编辑
 
 ## 使用流程
 
