@@ -65,7 +65,7 @@ npm run dev
 
 ### ComfyUI
 
-默认地址: `http://8.222.174.34:8188`
+默认地址: `http://localhost:8188`
 
 #### 工作流管理
 
@@ -88,9 +88,9 @@ npm run dev
 
 #### 选项 A: Ollama
 
-默认地址: `http://8.222.174.34:11434`
+默认地址: `http://localhost:11434`
 
-默认模型: `llama3`
+默认模型: `qwen3.5:35b`
 
 可以在应用的"设置"页面修改。
 
