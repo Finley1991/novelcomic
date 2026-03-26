@@ -298,39 +298,41 @@ class OpenAIClient:
         characters = [char_map[cid] for cid in storyboard.characterIds if cid in char_map]
         char_info = ""
         if characters:
-            char_info = "角色提示词：\n" + "\n".join([f"- {c.name}: {c.characterPrompt}" for c in characters])
+            char_info = "角色信息：\n" + "\n".join([f"- {c.name}: {c.description}" for c in characters])
 
         # 构建场景信息
         scene_info = ""
         if storyboard.sceneId:
             scene = next((s for s in project.scenes if s.id == storyboard.sceneId), None)
             if scene:
-                scene_info = f"场景描述：{scene.description}"
+                scene_info = f"场景：{scene.name}\n场景描述：{scene.description}"
 
         # 构建上下文分镜信息
         context_info = ""
         if surrounding_storyboards:
             current_idx = next((i for i, sb in enumerate(surrounding_storyboards) if sb.id == storyboard.id), 0)
-            context_info = "上下文分镜：\n"
+            context_info = ""
+            before_context = []
+            after_context = []
             for i, sb in enumerate(surrounding_storyboards):
-                pos = "当前" if i == current_idx else ("前" if i < current_idx else "后")
-                context_info += f"- [{pos}] {sb.sceneDescription[:100]}...\n"
+                if i < current_idx:
+                    before_context.append(f"- {sb.sceneDescription}")
+                elif i > current_idx:
+                    after_context.append(f"- {sb.sceneDescription}")
 
-        # 构建完整的 style_prompt
-        style_prompt = project.stylePrompt
-        if scene_info:
-            style_prompt = f"{style_prompt}, {scene_info}" if style_prompt else scene_info
+            if before_context:
+                context_info += f"前{len(before_context)}个分镜：\n" + "\n".join(before_context) + "\n\n"
+            if after_context:
+                context_info += f"后{len(after_context)}个分镜：\n" + "\n".join(after_context)
 
         system_prompt, user_prompt = prompt_template_manager.render_template(
             template,
             scene_description=storyboard.sceneDescription,
             characters=char_info,
-            style_prompt=style_prompt
+            style_prompt=project.stylePrompt,
+            scene_info=scene_info,
+            context_storyboards=context_info
         )
-
-        # 添加上下文到 user_prompt
-        if context_info:
-            user_prompt = f"{context_info}\n\n{user_prompt}"
 
         try:
             return await self.generate(user_prompt, system_prompt)
