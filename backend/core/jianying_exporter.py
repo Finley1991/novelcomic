@@ -94,8 +94,12 @@ class JianyingExporter:
                     script.add_material(audio_material)
                     audio_duration = audio_material.duration
 
-                # 使用音频实际时长，或者至少3秒
-                duration = int(max(audio_duration, storyboard.audioDuration * 1000000, 3000000))
+                # 使用音频实际时长作为图片时长
+                # 如果有音频，以音频时长为准；如果没有，使用 storyboard.audioDuration 或至少3秒
+                if "audio" in sb_map and audio_duration > 0:
+                    duration = int(audio_duration)
+                else:
+                    duration = int(max(storyboard.audioDuration * 1000000, 3000000))
 
                 # 添加视频片段（图片可以任意时长）
                 if "image" in sb_map:
