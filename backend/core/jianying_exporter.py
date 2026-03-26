@@ -88,18 +88,31 @@ class JianyingExporter:
 
                 # 添加音频素材和片段
                 audio_duration = 0
+                audio_material = None
                 if "audio" in sb_map:
                     audio_path = str(draft_dir / sb_map["audio"])
                     audio_material = draft.AudioMaterial(audio_path)
                     script.add_material(audio_material)
                     audio_duration = audio_material.duration
+                    logger.info(f"分镜 {storyboard.index}: 音频素材时长 = {audio_duration / 1000000:.3f}秒, storyboard音频时长 = {storyboard.audioDuration:.3f}秒")
 
                 # 使用音频实际时长作为图片时长
-                # 如果有音频，以音频时长为准；如果没有，使用 storyboard.audioDuration 或至少3秒
-                if "audio" in sb_map and audio_duration > 0:
-                    duration = int(audio_duration)
+                # 优先使用 storyboard.audioDuration（我们存储的实际音频时长）
+                # 其次使用 audio_material.duration
+                # 如果都没有，使用至少3秒
+                if "audio" in sb_map:
+                    if storyboard.audioDuration > 0:
+                        duration = int(storyboard.audioDuration * 1000000)
+                        logger.info(f"分镜 {storyboard.index}: 使用storyboard音频时长 = {duration / 1000000:.3f}秒")
+                    elif audio_duration > 0:
+                        duration = int(audio_duration)
+                        logger.info(f"分镜 {storyboard.index}: 使用音频素材时长 = {duration / 1000000:.3f}秒")
+                    else:
+                        duration = 3000000
+                        logger.info(f"分镜 {storyboard.index}: 使用最小时长 = {duration / 1000000:.3f}秒")
                 else:
                     duration = int(max(storyboard.audioDuration * 1000000, 3000000))
+                    logger.info(f"分镜 {storyboard.index}: 无音频，使用时长 = {duration / 1000000:.3f}秒")
 
                 # 添加视频片段（图片可以任意时长）
                 if "image" in sb_map:
