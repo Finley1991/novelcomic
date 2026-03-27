@@ -75,12 +75,20 @@ class JianyingExporter:
             # 3. 添加素材和片段到草稿
             from src.pyJianYingDraft.time_util import trange
 
+            logger.info("=" * 50)
+            logger.info("开始导出剪映草稿")
+            logger.info(f"项目分镜数量: {len(project.storyboards)}")
+
             current_time = 0
 
             for storyboard in project.storyboards:
                 sb_map = materials_map.get(storyboard.id, {})
+                logger.info(f"--- 分镜 {storyboard.index} ---")
+                logger.info(f"  素材: {list(sb_map.keys())}")
+                logger.info(f"  storyboard.audioDuration: {storyboard.audioDuration}")
 
                 # 添加视频素材和片段
+                img_material = None
                 if "image" in sb_map:
                     img_path = str(draft_dir / sb_map["image"])
                     img_material = draft.VideoMaterial(img_path)
@@ -94,28 +102,22 @@ class JianyingExporter:
                     audio_material = draft.AudioMaterial(audio_path)
                     script.add_material(audio_material)
                     audio_duration = audio_material.duration
-                    logger.info(f"分镜 {storyboard.index}: 音频素材时长 = {audio_duration / 1000000:.3f}秒, storyboard音频时长 = {storyboard.audioDuration:.3f}秒")
+                    logger.info(f"  音频素材时长: {audio_duration / 1000000:.3f}秒")
 
-                # 使用音频实际时长作为图片时长
-                # 优先使用 storyboard.audioDuration（我们存储的实际音频时长）
-                # 其次使用 audio_material.duration
-                # 如果都没有，使用至少3秒
-                if "audio" in sb_map:
-                    if storyboard.audioDuration > 0:
-                        duration = int(storyboard.audioDuration * 1000000)
-                        logger.info(f"分镜 {storyboard.index}: 使用storyboard音频时长 = {duration / 1000000:.3f}秒")
-                    elif audio_duration > 0:
-                        duration = int(audio_duration)
-                        logger.info(f"分镜 {storyboard.index}: 使用音频素材时长 = {duration / 1000000:.3f}秒")
-                    else:
-                        duration = 3000000
-                        logger.info(f"分镜 {storyboard.index}: 使用最小时长 = {duration / 1000000:.3f}秒")
+                # 确定时长 - 优先使用音频素材时长
+                duration = 3000000  # 默认3秒
+                if "audio" in sb_map and audio_duration > 0:
+                    duration = int(audio_duration)
+                    logger.info(f"  使用音频素材时长: {duration / 1000000:.3f}秒")
+                elif storyboard.audioDuration > 0:
+                    duration = int(storyboard.audioDuration * 1000000)
+                    logger.info(f"  使用storyboard音频时长: {duration / 1000000:.3f}秒")
                 else:
-                    duration = int(max(storyboard.audioDuration * 1000000, 3000000))
-                    logger.info(f"分镜 {storyboard.index}: 无音频，使用时长 = {duration / 1000000:.3f}秒")
+                    logger.info(f"  使用默认3秒")
 
                 # 添加视频片段（图片可以任意时长）
-                if "image" in sb_map:
+                if "image" in sb_map and img_material:
+                    logger.info(f"  创建视频片段, start={current_time / 1000000:.3f}s, duration={duration / 1000000:.3f}s")
                     video_seg = draft.VideoSegment(
                         img_material,
                         trange(start=current_time, duration=duration)
@@ -123,9 +125,9 @@ class JianyingExporter:
                     script.add_segment(video_seg, "main_video")
 
                 # 添加音频片段（使用音频实际时长）
-                if "audio" in sb_map:
-                    # 音频片段时长不能超过素材实际时长
+                if "audio" in sb_map and audio_material:
                     audio_seg_duration = min(duration, audio_duration)
+                    logger.info(f"  创建音频片段, start={current_time / 1000000:.3f}s, duration={audio_seg_duration / 1000000:.3f}s")
                     audio_seg = draft.AudioSegment(
                         audio_material,
                         trange(start=current_time, duration=audio_seg_duration)
@@ -133,6 +135,7 @@ class JianyingExporter:
                     script.add_segment(audio_seg, "main_audio")
 
                 current_time += duration
+                logger.info(f"  current_time 增加到: {current_time / 1000000:.3f}s")
 
             # 保存草稿
             script.save()
