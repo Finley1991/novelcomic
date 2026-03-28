@@ -226,32 +226,40 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
 
       // 开始轮询进度
       const pollInterval = setInterval(async () => {
-        await loadProject();
-        const data = project.decompressionData;
-        if (data) {
-          const total = data.textSegments.length;
-          const completed = data.audioClips.filter(
-            (c) => c.status === 'completed' || c.status === 'failed'
-          ).length;
-          const inProgress = data.audioClips.filter(
-            (c) => c.status === 'generating'
-          ).length;
+        try {
+          const response = await projectApi.get(id);
+          const latestProject = response.data;
+          setProject(latestProject);
+          onProjectUpdate(latestProject);
 
-          if (total > 0) {
-            setProgress(Math.round((completed / total) * 100));
-            if (inProgress > 0) {
-              setStatusText(`正在生成配音 (${completed}/${total})...`);
-            } else if (completed === total) {
-              setStatusText('完成！');
-              clearInterval(pollInterval);
-              setPolling(false);
-              setTimeout(() => {
-                setGeneratingAudio(false);
-                setProgress(0);
-                setStatusText('');
-              }, 1000);
+          const data = latestProject.decompressionData;
+          if (data) {
+            const total = data.textSegments.length;
+            const completed = data.audioClips.filter(
+              (c) => c.status === 'completed' || c.status === 'failed'
+            ).length;
+            const inProgress = data.audioClips.filter(
+              (c) => c.status === 'generating'
+            ).length;
+
+            if (total > 0) {
+              setProgress(Math.round((completed / total) * 100));
+              if (inProgress > 0) {
+                setStatusText(`正在生成配音 (${completed}/${total})...`);
+              } else if (completed === total) {
+                setStatusText('完成！');
+                clearInterval(pollInterval);
+                setPolling(false);
+                setTimeout(() => {
+                  setGeneratingAudio(false);
+                  setProgress(0);
+                  setStatusText('');
+                }, 1000);
+              }
             }
           }
+        } catch (error) {
+          console.error('Failed to poll audio status:', error);
         }
       }, 1000);
     } catch (error: any) {
