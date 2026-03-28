@@ -24,6 +24,15 @@
   - 如果支持多轨道：实施方案 A（视频和图片在不同轨道叠加）
   - 如果不支持：实施方案 B（仅使用视频素材，暂不使用图片）
 
+- [ ] **Step 3: 更新 decompression_exporter.py 中的 flag**
+  - 如果支持多轨道：设置 `SUPPORT_MULTIPLE_VIDEO_TRACKS = True`
+  - 如果不支持：设置 `SUPPORT_MULTIPLE_VIDEO_TRACKS = False`
+
+- [ ] **Step 4: 确保 style_prompts 目录存在并包含预置风格文件**
+  - 检查 `data/style_prompts/` 目录
+  - 确认包含：美食甜点.txt、城市风景.txt、治愈插画.txt、水墨国风.txt
+  - 如不存在，创建目录和占位文件
+
 ---
 
 ## 阶段一：后端数据模型和配置
@@ -37,7 +46,7 @@
 
 ```python
 class ProjectType(str, Enum):
-    NOVEL_COMIC = "novel_commic"
+    NOVEL_COMIC = "novel_comic"
     DECOMPRESSION_VIDEO = "decompression_video"
 ```
 
@@ -730,6 +739,7 @@ async def export_jianying(project_id: str, request: ExportDecompressionJianyingR
     from core.decompression_exporter import DecompressionJianyingExporter
     from config import settings
 
+    global_settings = storage.load_global_settings()
     proj_dir = Path(settings.data_dir) / "projects" / project_id
     template_dir = Path(__file__).parent.parent / "core" / "assets" / "jianying_template"
     draft_base_path = Path(global_settings.jianying.draftPath) if global_settings.jianying.draftPath else Path(settings.jianying_draft_path)
@@ -821,7 +831,11 @@ git commit -m "feat: 注册解压视频路由"
 **Files:**
 - Create: `backend/core/decompression_exporter.py`
 
-- [ ] **Step 1: 创建导出器类**
+**注意:** 根据前置准备的调研结果选择实施方案：
+- **方案 A（优先）**: 支持多轨道时 - 视频在下层轨道，图片在上层轨道叠加
+- **方案 B（备用）**: 不支持多轨道时 - 仅使用视频素材，图片暂不添加
+
+- [ ] **Step 1: 创建导出器类（支持方案 A 和 B）**
 
 ```python
 import json
@@ -840,6 +854,9 @@ logger = logging.getLogger(__name__)
 
 CAPCUT_MATE_PATH = Path("/Users/wyf-mac/Documents/code/claudecode/capcut-mate/src")
 sys.path.insert(0, str(CAPCUT_MATE_PATH.parent))
+
+# 根据前置准备的调研结果设置（在前置准备后更新此值）
+SUPPORT_MULTIPLE_VIDEO_TRACKS = True
 
 
 class DecompressionJianyingExporter:
@@ -874,35 +891,46 @@ class DecompressionJianyingExporter:
             )
 
             # 添加轨道
-            script.add_track(draft.TrackType.video, "video_background")
-            script.add_track(draft.TrackType.video, "video_overlay")
-            script.add_track(draft.TrackType.audio, "tts_audio")
-            script.add_track(draft.TrackType.text, "subtitle")
+            if SUPPORT_MULTIPLE_VIDEO_TRACKS:
+                script.add_track(draft.TrackType.video, "video_background")
+                script.add_track(draft.TrackType.video, "video_overlay")
+                script.add_track(draft.TrackType.audio, "tts_audio")
+                script.add_track(draft.TrackType.text, "subtitle")
+                video_track_index = 0
+                image_track_index = 1
+                audio_track_index = 2
+                subtitle_track_index = 3
+            else:
+                script.add_track(draft.TrackType.video, "main_video")
+                script.add_track(draft.TrackType.audio, "tts_audio")
+                script.add_track(draft.TrackType.text, "subtitle")
+                video_track_index = 0
+                audio_track_index = 1
+                subtitle_track_index = 2
 
             # 复制素材
             materials_map = self._copy_materials(project, project_dir, draft_dir)
 
-            # 添加视频素材（下层轨道）
+            # 添加视频素材
             logger.info("添加视频素材")
             for video_clip in project.decompressionData.videoClips:
                 material_key = f"video_{video_clip.id}"
                 if material_key in materials_map:
                     script.add_material_to_track(
                         materials_map[material_key],
-                        0,
+                        video_track_index,
                         trange(video_clip.startTime, video_clip.endTime)
                     )
 
-            # 添加图片素材（上层轨道）- 仅在有图片且有多轨道支持时
-            if project.decompressionData.imageClips:
+            # 添加图片素材（仅在有多轨道支持时）
+            if SUPPORT_MULTIPLE_VIDEO_TRACKS and project.decompressionData.imageClips:
                 logger.info("添加图片素材")
                 for image_clip in project.decompressionData.imageClips:
                     material_key = f"image_{image_clip.id}"
                     if material_key in materials_map:
-                        # TODO: 添加动效支持
                         script.add_material_to_track(
                             materials_map[material_key],
-                            1,
+                            image_track_index,
                             trange(image_clip.startTime, image_clip.endTime)
                         )
 
@@ -914,14 +942,14 @@ class DecompressionJianyingExporter:
                     if material_key in materials_map:
                         script.add_material_to_track(
                             materials_map[material_key],
-                            2,
+                            audio_track_index,
                             trange(audio_clip.startTime, audio_clip.endTime)
                         )
 
                 # 添加字幕
                 script.add_text_to_track(
                     audio_clip.text,
-                    3,
+                    subtitle_track_index,
                     trange(audio_clip.startTime, audio_clip.endTime)
                 )
 
@@ -1228,12 +1256,15 @@ import { projectApi, decompressionApi } from '../services/api';
 import type { Project, ProjectType } from '../services/api';
 import { WizardSteps } from '../components/project/WizardSteps';
 
-const DecompressionVideoEditor: React.FC = () => {
+interface DecompressionVideoEditorProps {
+  project: Project;
+}
+
+const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({ project: initialProject }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] = useState<Project>(initialProject);
   const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   const steps = [
     { id: 'settings', label: '项目设置' },
@@ -1242,24 +1273,6 @@ const DecompressionVideoEditor: React.FC = () => {
     { id: 'materials', label: '素材准备' },
     { id: 'export', label: '导出剪映' },
   ];
-
-  useEffect(() => {
-    if (id) loadProject();
-  }, [id]);
-
-  const loadProject = async () => {
-    try {
-      const data = await projectApi.get(id!);
-      setProject(data);
-    } catch (error) {
-      console.error('Failed to load project:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) return <div className="p-6">加载中...</div>;
-  if (!project) return <div className="p-6">项目未找到</div>;
 
   return (
     <div className="h-full flex flex-col">
@@ -1316,7 +1329,10 @@ const StepSettings: React.FC<{ project: Project; onUpdate: (p: Project) => void 
     if (updated.decompressionData) {
       updated.decompressionData.selectedStyle = style;
     }
-    await projectApi.update(project.id, { stylePrompt: style });
+    // 调用更新项目 API（需要在 api.ts 中添加此方法）
+    await projectApi.update(project.id, {
+      decompressionData: updated.decompressionData
+    });
     onUpdate(updated);
   };
 
@@ -1602,10 +1618,10 @@ const ProjectEditor: React.FC = () => {
   if (!project) return <div className="p-6">项目未找到</div>;
 
   if (project.type === 'decompression_video') {
-    return <DecompressionVideoEditor />;
+    return <DecompressionVideoEditor project={project} />;
   }
 
-  return <NovelComicEditor />;
+  return <NovelComicEditor project={project} />;
 };
 
 export default ProjectEditor;
