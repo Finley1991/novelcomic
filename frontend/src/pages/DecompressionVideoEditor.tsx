@@ -438,7 +438,8 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   };
 
   const getData = (): DecompressionProjectData => {
-    const baseData = project.decompressionData || {
+    const baseData = project.decompressionData;
+    const defaultData = {
       sourceText: project.sourceText || '',
       textSegments: [],
       audioClips: [],
@@ -451,8 +452,12 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     };
     // 使用本地 sourceText 而不是数据中的
     return {
+      ...defaultData,
       ...baseData,
       sourceText: localSourceText,
+      // 确保新字段有默认值
+      subtitleSegments: baseData?.subtitleSegments ?? [],
+      uploadedAudioFiles: baseData?.uploadedAudioFiles ?? [],
     };
   };
 
