@@ -542,19 +542,25 @@ export const decompressionApi = {
   uploadSubtitle: (projectId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/decompression/projects/${projectId}/upload-subtitle`, formData);
+    return api.post(`/decompression/projects/${projectId}/upload-subtitle`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
   },
   deleteSubtitle: (projectId: string) => api.delete(`/decompression/projects/${projectId}/subtitle`),
   // 上传音频
   uploadAudio: (projectId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/decompression/projects/${projectId}/upload-audio`, formData);
+    return api.post(`/decompression/projects/${projectId}/upload-audio`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
   },
   uploadAudios: (projectId: string, files: File[]) => {
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
-    return api.post(`/decompression/projects/${projectId}/upload-audios`, formData);
+    return api.post(`/decompression/projects/${projectId}/upload-audios`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
   },
   deleteUploadedAudios: (projectId: string) => api.delete(`/decompression/projects/${projectId}/audios`),
 };
