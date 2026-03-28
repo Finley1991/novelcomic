@@ -2,11 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card bg-light-card dark:bg-dark-card shadow-card transition-all duration-200;
+  }
+
+  .card:hover {
+    @apply shadow-card-hover -translate-y-1;
+  }
+
+  .card:active {
+    @apply translate-y-0;
+  }
+
+  .btn-primary {
+    @apply rounded-button bg-gradient-to-br from-primary-500 to-primary-600 text-white px-5 py-2.5 font-medium transition-all duration-150 hover:-translate-y-0.5 hover:shadow-primary;
+  }
+
+  .btn-secondary {
+    @apply rounded-button bg-transparent border border-light-border dark:border-dark-border text-light-text-primary dark:text-dark-text-primary px-5 py-2.5 font-medium transition-all duration-150 hover:bg-light-divider dark:hover:bg-dark-divider hover:border-gray-300 dark:hover:border-gray-500;
+  }
+
+  .btn-icon {
+    @apply w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150 hover:bg-black/5 dark:hover:bg-white/5;
+  }
+
+  .input-field {
+    @apply rounded-input border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card px-3.5 py-2.5 text-sm transition-all duration-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10;
+  }
+
+  .input-label {
+    @apply text-sm font-medium text-gray-600 dark:text-gray-400 mb-1.5;
+  }
+
+  .page-transition {
+    animation: fadeIn 300ms ease-in-out;
+  }
+
+  .sidebar-transition {
+    transition: width 200ms ease;
+  }
+
+  .modal-enter {
+    animation: modalIn 200ms ease-out;
+  }
 }

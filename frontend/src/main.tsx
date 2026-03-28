@@ -1,7 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './index.css';
+import { ThemeProvider } from './styles/themes';
+import { ToastProvider } from './hooks/useToast';
+import { ToastContainer } from './components/ui/Toast';
+import { AppLayout } from './components/layout/AppLayout';
 
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const ProjectEditor = React.lazy(() => import('./pages/ProjectEditor'));
@@ -9,37 +13,75 @@ const Settings = React.lazy(() => import('./pages/Settings'));
 const PromptManager = React.lazy(() => import('./pages/PromptManager'));
 const ImagePromptManager = React.lazy(() => import('./pages/ImagePromptManager'));
 
+// Placeholder page for help
+function HelpPage() {
+  return (
+    <div className="card p-6">
+      <h2 className="text-2xl font-bold text-light-text-primary dark:text-dark-text-primary">使用帮助</h2>
+    </div>
+  );
+}
+
+// Wrapper for pages that use AppLayout
+function LayoutWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <AppLayout>
+          {children}
+        </AppLayout>
+        <ToastContainer />
+      </ToastProvider>
+    </ThemeProvider>
+  );
+}
+
+// Wrapper for standalone pages (with their own layout)
+function StandaloneWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        {children}
+        <ToastContainer />
+      </ToastProvider>
+    </ThemeProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-100">
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex items-center">
-                <h1 className="text-xl font-bold text-gray-900">NovelComic</h1>
-              </div>
-              <div className="flex items-center space-x-4">
-                <a href="/" className="text-gray-600 hover:text-gray-900">项目</a>
-                <a href="/prompts" className="text-gray-600 hover:text-gray-900">Prompt 模板</a>
-                <a href="/image-prompts" className="text-gray-600 hover:text-gray-900">图片提示词</a>
-                <a href="/settings" className="text-gray-600 hover:text-gray-900">设置</a>
-              </div>
-            </div>
-          </div>
-        </nav>
-        <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <React.Suspense fallback={<div>Loading...</div>}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/project/:id" element={<ProjectEditor />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/prompts" element={<PromptManager />} />
-              <Route path="/image-prompts" element={<ImagePromptManager />} />
-            </Routes>
-          </React.Suspense>
-        </main>
-      </div>
+      <Routes>
+        {/* Standalone pages (legacy with their own layout) */}
+        <Route path="/prompts" element={
+          <StandaloneWrapper>
+            <React.Suspense fallback={<div className="p-6">加载中...</div>}>
+              <PromptManager />
+            </React.Suspense>
+          </StandaloneWrapper>
+        } />
+        <Route path="/image-prompts" element={
+          <StandaloneWrapper>
+            <React.Suspense fallback={<div className="p-6">加载中...</div>}>
+              <ImagePromptManager />
+            </React.Suspense>
+          </StandaloneWrapper>
+        } />
+        {/* Pages with AppLayout */}
+        <Route path="/*" element={
+          <LayoutWrapper>
+            <React.Suspense fallback={<div className="card p-6">加载中...</div>}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/project/:id" element={<ProjectEditor />} />
+                <Route path="/templates" element={<Navigate to="/prompts" replace />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/help" element={<HelpPage />} />
+              </Routes>
+            </React.Suspense>
+          </LayoutWrapper>
+        } />
+      </Routes>
     </BrowserRouter>
   );
 }

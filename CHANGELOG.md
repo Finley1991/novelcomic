@@ -2,6 +2,81 @@
 
 ## [Unreleased]
 
+### 2026-03-28
+
+#### UI/UX 全面优化升级
+- **全新视觉设计系统**
+  - 温暖亲和风格配色：温暖的橙色与蓝色调搭配
+  - 明暗双主题完整支持，通过 CSS 自定义属性实现
+  - 新增 Tailwind 自定义颜色主题（primary-50~900）
+  - 新增圆角、阴影、过渡动画设计 tokens
+  - 新增长阴影效果（shadow-card, shadow-card-hover, shadow-primary）
+
+- **侧边栏导航 + 向导式混合布局**
+  - 全新可折叠侧边栏（Sidebar）组件
+  - 顶部导航栏（TopBar）：主题切换、通知中心、快捷键帮助
+  - AppLayout 组件整合侧边栏与顶部栏
+  - 向导式步骤导航（WizardSteps）组件
+  - 项目编辑器采用向导式布局，6个步骤清晰展示
+
+- **Toast 通知系统**
+  - React Context 管理的 Toast 系统
+  - useToast Hook 提供 toast() 方法
+  - 4种通知类型：success/info/warning/error
+  - ToastContainer 自动显示/隐藏动画
+  - 4秒自动消失，支持手动关闭
+
+- **键盘快捷键系统**
+  - useKeyboardShortcuts Hook 监听全局快捷键
+  - Cmd/Ctrl + K: 打开快捷键帮助
+  - Cmd/Ctrl + [: 切换到上一步
+  - Cmd/Ctrl + ]: 切换到下一步
+  - Esc: 关闭弹窗/取消操作
+  - KeyboardShortcutsHelp 弹窗显示所有快捷键
+
+- **设计组件库**
+  - @layer card 组件：带悬停效果和阴影的卡片
+  - @layer btn-primary: 渐变主按钮，带悬停动画
+  - @layer btn-secondary: 次要按钮，边框样式
+  - @layer btn-icon: 圆形图标按钮
+  - @layer input-field: 输入框样式，带焦点状态
+  - 所有组件支持明暗主题
+
+- **路由与布局重构**
+  - /prompts 和 /image-prompts 保留独立布局（StandaloneWrapper）
+  - /* 路由使用 AppLayout（LayoutWrapper）
+  - 新增 Templates 页面作为新布局下的提示词模板入口
+  - /templates 路由重定向到 /prompts 保持兼容性
+
+#### 技术改进
+- ThemeProvider 使用 CSS 自定义属性实现主题切换
+- Tailwind config 配置完整的自定义设计 tokens
+- 所有组件使用 dark: 前缀支持暗色主题
+- React.lazy + Suspense 实现代码分割和加载状态
+- 向导式步骤状态管理与路由同步
+
+#### 文件清单
+**新增文件:**
+- `docs/superpowers/specs/2026-03-27-ui-ux-optimization-design.md` - UI/UX 优化设计文档
+- `docs/superpowers/plans/2026-03-28-ui-ux-optimization-plan.md` - 实施计划
+- `frontend/src/styles/themes.tsx` - ThemeProvider 和 useTheme Hook
+- `frontend/src/hooks/useToast.tsx` - Toast 上下文和 Hook
+- `frontend/src/hooks/useKeyboardShortcuts.ts` - 键盘快捷键 Hook
+- `frontend/src/components/ui/Toast.tsx` - Toast 组件和 ToastContainer
+- `frontend/src/components/ui/KeyboardShortcutsHelp.tsx` - 快捷键帮助弹窗
+- `frontend/src/components/layout/Sidebar.tsx` - 侧边栏导航组件
+- `frontend/src/components/layout/TopBar.tsx` - 顶部栏组件
+- `frontend/src/components/layout/AppLayout.tsx` - 应用主布局
+- `frontend/src/components/project/WizardSteps.tsx` - 向导步骤导航组件
+- `frontend/src/pages/Templates.tsx` - 新提示词模板页面
+
+**修改文件:**
+- `frontend/tailwind.config.js` - 自定义颜色主题、圆角、阴影设计 tokens
+- `frontend/src/index.css` - @layer base/components 组件库定义
+- `frontend/src/main.tsx` - 路由重构、ThemeProvider、ToastProvider 集成
+- `frontend/src/pages/Dashboard.tsx` - 新卡片式设计布局
+- `frontend/src/pages/ProjectEditor.tsx` - 向导式步骤导航集成
+
 ### 2026-03-25
 
 #### 场景提取与增强图片提示词生成功能
