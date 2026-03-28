@@ -107,6 +107,44 @@ class TTSClient:
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
 
+        # 如果没有配置 Azure TTS key，返回 mock 音频（静音）用于测试
+        if not self.key or not self.region:
+            logger.warning("Azure TTS not configured, returning mock audio")
+            # 估算音频时长：中文字数 * 0.18 秒/字
+            duration = max(1.0, len(text) * 0.18)
+            # 生成静音 WAV
+            sample_rate = 24000
+            num_channels = 1
+            bits_per_sample = 16
+            num_samples = int(sample_rate * duration)
+            # 创建 WAV 头部
+            import struct
+            wav_header = struct.pack(
+                '<4sI4s',
+                b'RIFF',
+                36 + num_samples * num_channels * bits_per_sample // 8,
+                b'WAVE'
+            )
+            fmt_header = struct.pack(
+                '<4sIHHIIHH',
+                b'fmt ',
+                16,
+                1,
+                num_channels,
+                sample_rate,
+                sample_rate * num_channels * bits_per_sample // 8,
+                num_channels * bits_per_sample // 8,
+                bits_per_sample
+            )
+            data_header = struct.pack(
+                '<4sI',
+                b'data',
+                num_samples * num_channels * bits_per_sample // 8
+            )
+            # 静音数据
+            audio_data = wav_header + fmt_header + data_header + b'\x00' * (num_samples * num_channels * bits_per_sample // 8)
+            return audio_data, duration
+
         # 如果提供了 tts_config，优先使用
         if tts_config:
             # Handle both dict and object

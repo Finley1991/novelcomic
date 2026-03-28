@@ -4,6 +4,13 @@ from enum import Enum
 from datetime import datetime
 import uuid
 
+
+class ProjectType(str, Enum):
+    """项目类型"""
+    NOVEL_COMIC = "novel_comic"
+    DECOMPRESSION_VIDEO = "decompression_video"
+
+
 class MotionType(str, Enum):
     NONE = "none"
     PAN_LEFT = "pan_left"
@@ -12,6 +19,17 @@ class MotionType(str, Enum):
     PAN_DOWN = "pan_down"
     ZOOM_IN = "zoom_in"
     ZOOM_OUT = "zoom_out"
+
+
+class MotionConfig(BaseModel):
+    type: MotionType = MotionType.NONE
+    startScale: float = 1.0
+    endScale: float = 1.0
+    startX: float = 0.0
+    endX: float = 0.0
+    startY: float = 0.0
+    endY: float = 0.0
+
 
 class PromptType(str, Enum):
     CHARACTER_EXTRACTION = "character_extraction"
@@ -27,25 +45,74 @@ class PromptSnippetCategory(str, Enum):
     COMPOSITION = "composition"
     CUSTOM = "custom"
 
+
 class GenerationStatus(str, Enum):
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"
     FAILED = "failed"
 
-class MotionConfig(BaseModel):
-    type: MotionType = MotionType.NONE
-    startScale: float = 1.0
-    endScale: float = 1.0
-    startX: float = 0.0
-    endX: float = 0.0
-    startY: float = 0.0
-    endY: float = 0.0
+
+class TextSegment(BaseModel):
+    """按行拆分的文本片段"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    index: int
+    text: str
+
+
+class AudioClip(BaseModel):
+    """音频片段"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    index: int = 0
+    textSegmentId: str
+    text: str
+    audioPath: Optional[str] = None
+    duration: float = 0.0
+    startTime: float = 0.0
+    endTime: float = 0.0
+    status: GenerationStatus = GenerationStatus.PENDING
+
+
+class VideoClip(BaseModel):
+    """视频素材片段"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    filePath: str
+    fileName: str
+    duration: float
+    startTime: float = 0.0
+    endTime: float = 0.0
+
+
+class ImageClip(BaseModel):
+    """图片素材片段"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    index: int
+    prompt: str
+    imagePath: Optional[str] = None
+    duration: float = 15.0
+    startTime: float = 0.0
+    endTime: float = 0.0
+    motion: MotionConfig = Field(default_factory=MotionConfig)
+    status: GenerationStatus = GenerationStatus.PENDING
+
+
+class DecompressionProjectData(BaseModel):
+    """解压视频混剪项目特定数据"""
+    sourceText: str = ""
+    selectedStyle: Optional[str] = None
+    textSegments: List[TextSegment] = Field(default_factory=list)
+    audioClips: List[AudioClip] = Field(default_factory=list)
+    totalAudioDuration: float = 0.0
+    videoClips: List[VideoClip] = Field(default_factory=list)
+    imageClips: List[ImageClip] = Field(default_factory=list)
+    status: str = "editing"
+
 
 class PromptVariable(BaseModel):
     name: str
     description: str
     example: str
+
 
 class PromptTemplate(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -80,11 +147,13 @@ class ImagePromptTemplate(BaseModel):
     createdAt: datetime = Field(default_factory=datetime.now)
     updatedAt: datetime = Field(default_factory=datetime.now)
 
+
 class TTSConfig(BaseModel):
     """角色 TTS 配置"""
     voice: str = "zh-CN-XiaoxiaoNeural"
     rate: float = 1.0
     pitch: int = 0
+
 
 class Character(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -104,6 +173,7 @@ class Scene(BaseModel):
     description: str = ""
     createdAt: datetime = Field(default_factory=datetime.now)
     updatedAt: datetime = Field(default_factory=datetime.now)
+
 
 class Storyboard(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -125,6 +195,7 @@ class Storyboard(BaseModel):
     motion: MotionConfig = Field(default_factory=MotionConfig)
     ttsConfig: Optional[TTSConfig] = None  # 分镜独立音色配置
 
+
 class GenerationProgress(BaseModel):
     imagesCompleted: int = 0
     imagesTotal: int = 0
@@ -132,12 +203,14 @@ class GenerationProgress(BaseModel):
     audioTotal: int = 0
     lastSavedAt: Optional[datetime] = None
 
+
 class Project(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     createdAt: datetime = Field(default_factory=datetime.now)
     updatedAt: datetime = Field(default_factory=datetime.now)
     status: str = "editing"
+    type: ProjectType = ProjectType.NOVEL_COMIC
     sourceText: str = ""
     stylePrompt: str = ""
     negativePrompt: str = "bad anatomy, bad hands, blurry"
@@ -147,6 +220,8 @@ class Project(BaseModel):
     characters: List[Character] = Field(default_factory=list)
     scenes: List[Scene] = Field(default_factory=list)
     storyboards: List[Storyboard] = Field(default_factory=list)
+    decompressionData: Optional[DecompressionProjectData] = None
+
 
 class ComfyUINodeMappings(BaseModel):
     # 提示词相关
@@ -195,6 +270,7 @@ class ComfyUIWorkflowParams(BaseModel):
     positivePromptSuffix: str = ""
     negativePromptOverride: Optional[str] = None  # None = 不覆盖
 
+
 class ComfyUIWorkflow(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -203,11 +279,13 @@ class ComfyUIWorkflow(BaseModel):
     defaultParams: ComfyUIWorkflowParams = Field(default_factory=ComfyUIWorkflowParams)
     createdAt: datetime = Field(default_factory=datetime.now)
 
+
 class ComfyUINodeInfo(BaseModel):
     id: str
     classType: str
-    title: Optional[str]
+    title: Optional[str] = None
     fields: List[str]
+
 
 class ComfyUISettings(BaseModel):
     apiUrl: str = "http://8.222.174.34:8188"
@@ -216,9 +294,11 @@ class ComfyUISettings(BaseModel):
     concurrentLimit: int = 3
     activeWorkflowId: Optional[str] = None
 
+
 class LLMProvider(str, Enum):
     OLLAMA = "ollama"
     OPENAI = "openai"
+
 
 class OllamaSettings(BaseModel):
     apiUrl: str = "http://8.222.174.34:11434"
@@ -226,6 +306,7 @@ class OllamaSettings(BaseModel):
     timeout: int = 120
     maxRetries: int = 2
     chunkSize: int = 4000
+
 
 class OpenAISettings(BaseModel):
     apiKey: str = ""
@@ -236,10 +317,12 @@ class OpenAISettings(BaseModel):
     chunkSize: int = 4000
     proxy: str = ""
 
+
 class LLMSettings(BaseModel):
     provider: LLMProvider = LLMProvider.OLLAMA
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     openai: OpenAISettings = Field(default_factory=OpenAISettings)
+
 
 class TTSSettings(BaseModel):
     azureKey: Optional[str] = None
@@ -251,11 +334,13 @@ class TTSSettings(BaseModel):
     maxRetries: int = 3
     concurrentLimit: int = 5
 
+
 class JianyingSettings(BaseModel):
     canvasWidth: int = 1920
     canvasHeight: int = 1080
     canvasRatio: str = "16:9"
     draftPath: str = ""
+
 
 class GlobalSettings(BaseModel):
     defaultPromptTemplates: Dict[PromptType, str] = Field(default_factory=dict)
@@ -264,11 +349,15 @@ class GlobalSettings(BaseModel):
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)  # Keep for backwards compatibility
     tts: TTSSettings = Field(default_factory=TTSSettings)
     jianying: JianyingSettings = Field(default_factory=JianyingSettings)
+    decompressionVideoPath: str = "/Users/wyf-mac/Documents/小说推文/视频"
+    stylePromptsPath: str = ""
+
 
 # Request schemas
 class CreateComfyUIWorkflowRequest(BaseModel):
     name: str
     workflowJson: Dict[str, Any]
+
 
 class UpdateProjectRequest(BaseModel):
     name: Optional[str] = None
@@ -277,17 +366,44 @@ class UpdateProjectRequest(BaseModel):
     negativePrompt: Optional[str] = None
     projectPromptTemplates: Optional[Dict[PromptType, str]] = None
 
+
 class UpdateComfyUIWorkflowRequest(BaseModel):
     name: Optional[str] = None
     nodeMappings: Optional[ComfyUINodeMappings] = None
     defaultParams: Optional[ComfyUIWorkflowParams] = None
 
+
 class SetActiveWorkflowRequest(BaseModel):
     workflowId: str
+
 
 class CreateProjectRequest(BaseModel):
     name: str
     sourceText: Optional[str] = None
+    type: ProjectType = ProjectType.NOVEL_COMIC
+
+
+class SplitTextRequest(BaseModel):
+    pass
+
+
+class SelectVideosRequest(BaseModel):
+    pass
+
+
+class GenerateDecompressionImagesRequest(BaseModel):
+    forceRegenerate: bool = False
+
+
+class ExportDecompressionJianyingRequest(BaseModel):
+    canvasWidth: Optional[int] = None
+    canvasHeight: Optional[int] = None
+    fps: Optional[int] = None
+
+
+class UpdateDecompressionDataRequest(BaseModel):
+    selectedStyle: Optional[str] = None
+
 
 class UpdateStoryboardRequest(BaseModel):
     index: Optional[int] = None
@@ -301,36 +417,45 @@ class UpdateStoryboardRequest(BaseModel):
     motion: Optional[MotionConfig] = None
     ttsConfig: Optional[TTSConfig] = None
 
+
 class ReorderStoryboardsRequest(BaseModel):
     storyboardIds: List[str]
+
 
 class GenerateImagesRequest(BaseModel):
     storyboardIds: Optional[List[str]] = None
     forceRegenerate: bool = False
 
+
 class GenerateAudiosRequest(BaseModel):
     storyboardIds: Optional[List[str]] = None
     forceRegenerate: bool = False
 
+
 class SplitStoryboardRequest(BaseModel):
     lines_per_storyboard: int = Field(1, ge=1, le=3, description="每个分镜包含的行数(1-3)")
+
 
 class GeneratePromptsRequest(BaseModel):
     storyboardIds: Optional[List[str]] = None
 
+
 class GeneratePromptsResponse(BaseModel):
     success: bool
     updated: int
+
 
 class ExportJianyingRequest(BaseModel):
     canvasWidth: Optional[int] = None
     canvasHeight: Optional[int] = None
     fps: Optional[int] = None
 
+
 # Response schemas
 class GenerationStatusResponse(BaseModel):
     images: Dict[str, Any]
     audio: Dict[str, Any]
+
 
 class ExportJianyingResponse(BaseModel):
     exportId: str

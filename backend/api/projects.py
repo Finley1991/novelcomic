@@ -7,7 +7,8 @@ import logging
 from models.schemas import (
     Project, CreateProjectRequest, GlobalSettings,
     Character, Storyboard, UpdateStoryboardRequest,
-    ReorderStoryboardsRequest, PromptType, UpdateProjectRequest
+    ReorderStoryboardsRequest, PromptType, UpdateProjectRequest,
+    ProjectType
 )
 from core.storage import storage
 from core.llm import LLMClient
@@ -33,12 +34,23 @@ async def list_projects():
 
 @router.post("/projects", response_model=Project)
 async def create_project(request: CreateProjectRequest):
+    logger.info(f"Creating project: name={request.name}, type={request.type}")
+
     project = Project(
         id=str(uuid.uuid4()),
         name=request.name,
-        sourceText=request.sourceText or ""
+        sourceText=request.sourceText or "",
+        type=request.type or ProjectType.NOVEL_COMIC
     )
+
+    if project.type == ProjectType.DECOMPRESSION_VIDEO:
+        from models.schemas import DecompressionProjectData
+        project.decompressionData = DecompressionProjectData(sourceText=request.sourceText or "")
+        logger.info(f"Setting decompressionData for project")
+
+    logger.info(f"Saving project: {project.id}")
     storage.save_project(project)
+    logger.info(f"Project saved successfully")
     return project
 
 @router.get("/projects/{project_id}", response_model=Project)
@@ -46,16 +58,23 @@ async def get_project(project_id: str):
     project = storage.load_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    # 确保所有必需字段都存在
-    from models.schemas import Scene
-    if not hasattr(project, 'scenes') or project.scenes is None:
-        project.scenes = []
-    # 确保每个 storyboard 都有 sceneId
-    for sb in project.storyboards:
-        if not hasattr(sb, 'sceneId'):
-            sb.sceneId = None
-        if not hasattr(sb, 'characterIds') or sb.characterIds is None:
-            sb.characterIds = []
+
+    # 确保 type 字段存在
+    if not hasattr(project, 'type') or project.type is None:
+        project.type = ProjectType.NOVEL_COMIC
+
+    # 确保所有必需字段都存在（仅对 novel_comic 类型）
+    if project.type == ProjectType.NOVEL_COMIC:
+        from models.schemas import Scene
+        if not hasattr(project, 'scenes') or project.scenes is None:
+            project.scenes = []
+        # 确保每个 storyboard 都有 sceneId
+        for sb in project.storyboards:
+            if not hasattr(sb, 'sceneId'):
+                sb.sceneId = None
+            if not hasattr(sb, 'characterIds') or sb.characterIds is None:
+                sb.characterIds = []
+
     return project
 
 @router.put("/projects/{project_id}", response_model=Project)
@@ -67,6 +86,12 @@ async def update_project(project_id: str, request: UpdateProjectRequest):
         project.name = request.name
     if request.sourceText is not None:
         project.sourceText = request.sourceText
+        # 对于解压视频项目，同时更新 decompressionData.sourceText
+        if project.type == ProjectType.DECOMPRESSION_VIDEO:
+            if not project.decompressionData:
+                from models.schemas import DecompressionProjectData
+                project.decompressionData = DecompressionProjectData()
+            project.decompressionData.sourceText = request.sourceText
     if request.stylePrompt is not None:
         project.stylePrompt = request.stylePrompt
     if request.negativePrompt is not None:

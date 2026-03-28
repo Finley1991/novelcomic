@@ -8,7 +8,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 from config import settings
-from models.schemas import Project, GlobalSettings, ComfyUIWorkflow
+from models.schemas import Project, GlobalSettings, ComfyUIWorkflow, ProjectType
 
 class StorageManager:
     def __init__(self):
@@ -51,6 +51,7 @@ class StorageManager:
                             projects.append({
                                 "id": data.get("id"),
                                 "name": data.get("name"),
+                                "type": data.get("type", "novel_comic"),
                                 "createdAt": data.get("createdAt"),
                                 "updatedAt": data.get("updatedAt"),
                                 "status": data.get("status")
@@ -78,6 +79,19 @@ class StorageManager:
                     for sb in data["storyboards"]:
                         if "sceneId" not in sb:
                             sb["sceneId"] = None
+                # 向后兼容：确保 type 字段存在
+                if "type" not in data:
+                    data["type"] = "novel_comic"
+                # 向后兼容：确保 decompressionData 字段存在
+                if data["type"] == "decompression_video" and "decompressionData" not in data:
+                    data["decompressionData"] = {}
+                # 向后兼容：确保 AudioClip 有 index 字段
+                if data["type"] == "decompression_video" and "decompressionData" in data:
+                    dd = data["decompressionData"]
+                    if "audioClips" in dd:
+                        for i, clip in enumerate(dd["audioClips"]):
+                            if "index" not in clip:
+                                clip["index"] = i
                 return Project(**data)
         except Exception as e:
             logger.error(f"Failed to load project {project_id}: {e}")
@@ -90,6 +104,9 @@ class StorageManager:
         (proj_dir / "audio").mkdir(exist_ok=True)
         (proj_dir / "characters").mkdir(exist_ok=True)
         (proj_dir / "export").mkdir(exist_ok=True)
+        # 为解压视频项目创建专用文件夹
+        if project.type == ProjectType.DECOMPRESSION_VIDEO:
+            (proj_dir / "decompression_images").mkdir(exist_ok=True)
 
         project.updatedAt = datetime.now()
         with open(self._get_project_path(project.id), 'w', encoding='utf-8') as f:

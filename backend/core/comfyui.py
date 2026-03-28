@@ -130,6 +130,7 @@ class ComfyUIClient:
         steps: int = 30,
         cfg: float = 7.0,
         sampler_name: str = "dpmpp_2m_sde_karras",
+        seed: int = 0,
         workflow_id: Optional[str] = None
     ) -> Optional[bytes]:
         from core.storage import storage
@@ -155,7 +156,7 @@ class ComfyUIClient:
             steps=steps,
             cfg=cfg,
             sampler_name=sampler_name,
-            seed=0,
+            seed=seed,
             batch_size=1,
             params=workflow.defaultParams
         )

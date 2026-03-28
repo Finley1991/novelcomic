@@ -2,6 +2,9 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
 
+# 项目根目录（backend 目录的父目录）
+BASE_DIR = Path(__file__).parent.parent
+
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -38,6 +41,9 @@ class Settings(BaseSettings):
     jianying_canvas_height: int = 1080
     jianying_canvas_ratio: str = "16:9"
     jianying_draft_path: str = ""
+
+    decompression_video_path: str = "/Users/wyf-mac/Documents/小说推文/视频"
+    style_prompts_path: str = str(BASE_DIR / "data" / "style_prompts")
 
     class Config:
         env_file = ".env"

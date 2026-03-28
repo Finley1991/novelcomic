@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { projectApi } from '../services/api';
+import { projectApi, type ProjectType } from '../services/api';
+import { useToast } from '../hooks/useToast';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [projects, setProjects] = useState<any[]>([]);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectText, setNewProjectText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedProjectType, setSelectedProjectType] = useState<ProjectType>('novel_comic');
 
   useEffect(() => {
     loadProjects();
@@ -27,13 +31,33 @@ const Dashboard = () => {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!newProjectName.trim()) return;
 
+    setIsCreating(true);
     try {
-      const response = await projectApi.create(newProjectName, newProjectText || undefined);
+      console.log('Creating project with:', {
+        name: newProjectName,
+        type: selectedProjectType,
+        sourceText: selectedProjectType === 'novel_comic' ? newProjectText || undefined : undefined
+      });
+      const response = await projectApi.create(
+        newProjectName,
+        selectedProjectType === 'novel_comic' ? newProjectText || undefined : undefined,
+        selectedProjectType
+      );
+      console.log('Project created:', response.data);
+      setShowCreateModal(false);
       navigate(`/project/${response.data.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create project:', error);
+      toast({
+        type: 'error',
+        title: '创建项目失败',
+        message: error?.response?.data?.detail || error?.message || '请重试'
+      });
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -83,9 +107,19 @@ const Dashboard = () => {
           onClick={() => navigate(`/project/${project.id}`)}
         >
           <div className="flex justify-between items-start mb-4">
-            <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
-              {project.name}
-            </h3>
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
+                {project.name}
+              </h3>
+              <div className="flex gap-2">
+                {(!project.type || project.type === 'novel_comic') && (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded dark:bg-blue-900/30 dark:text-blue-300">AI推文</span>
+                )}
+                {project.type === 'decompression_video' && (
+                  <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded dark:bg-green-900/30 dark:text-green-300">解压视频</span>
+                )}
+              </div>
+            </div>
             <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => navigate(`/project/${project.id}`)}
@@ -129,7 +163,7 @@ const Dashboard = () => {
             还没有项目
           </h3>
           <p className="text-light-text-secondary dark:text-dark-text-secondary mb-6">
-            点击上方按钮创建你的第一个漫剧项目
+            点击上方按钮创建你的第一个项目
           </p>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -143,7 +177,7 @@ const Dashboard = () => {
       {/* Create Project Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="card p-6 w-full max-w-md modal-enter">
+          <div className="card p-6 w-full max-w-lg modal-enter">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
                 创建新项目
@@ -168,28 +202,62 @@ const Dashboard = () => {
                 />
               </div>
               <div>
-                <label className="input-label">小说文本（可选）</label>
-                <textarea
-                  value={newProjectText}
-                  onChange={(e) => setNewProjectText(e.target.value)}
-                  className="input-field w-full h-32 resize-none"
-                  placeholder="粘贴小说文本..."
-                />
+                <label className="block input-label mb-2">项目类型</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProjectType('novel_comic')}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      selectedProjectType === 'novel_comic'
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
+                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">🎬</div>
+                    <div className="font-medium text-light-text-primary dark:text-dark-text-primary">AI推文视频项目</div>
+                    <div className="text-sm text-light-text-secondary dark:text-dark-text-secondary">小说转漫剧</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProjectType('decompression_video')}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      selectedProjectType === 'decompression_video'
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
+                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">🎮</div>
+                    <div className="font-medium text-light-text-primary dark:text-dark-text-primary">解压视频混剪项目</div>
+                    <div className="text-sm text-light-text-secondary dark:text-dark-text-secondary">视频+图片混剪</div>
+                  </button>
+                </div>
               </div>
+              {selectedProjectType === 'novel_comic' && (
+                <div>
+                  <label className="input-label">小说文本（可选）</label>
+                  <textarea
+                    value={newProjectText}
+                    onChange={(e) => setNewProjectText(e.target.value)}
+                    className="input-field w-full h-32 resize-none"
+                    placeholder="粘贴小说文本..."
+                  />
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
                   className="btn-secondary flex-1"
+                  disabled={isCreating}
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   className="btn-primary flex-1"
-                  disabled={!newProjectName.trim()}
+                  disabled={!newProjectName.trim() || isCreating}
                 >
-                  创建
+                  {isCreating ? '创建中...' : '创建'}
                 </button>
               </div>
             </form>

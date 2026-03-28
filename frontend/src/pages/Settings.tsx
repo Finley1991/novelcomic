@@ -90,6 +90,8 @@ const Settings: React.FC = () => {
     ollama: { apiUrl: '', model: 'llama3', timeout: 120, maxRetries: 2, chunkSize: 4000 },
     tts: { azureKey: '', azureRegion: '', voice: 'zh-CN-XiaoxiaoNeural', rate: 1.0, pitch: 0, timeout: 60, maxRetries: 3, concurrentLimit: 5 },
     jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9', draftPath: '' },
+    decompressionVideoPath: '',
+    stylePromptsPath: '',
   });
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -757,6 +759,38 @@ const Settings: React.FC = () => {
                 <option value="4:3">4:3</option>
                 <option value="1:1">1:1</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">解压视频设置</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">解压视频素材目录</label>
+              <input
+                type="text"
+                value={settings.decompressionVideoPath || ''}
+                onChange={(e) => setSettings({...settings, decompressionVideoPath: e.target.value})}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="/Users/xxx/Videos/decompression"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                解压视频素材文件夹路径，用于自动选择视频素材
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">风格提示词目录</label>
+              <input
+                type="text"
+                value={settings.stylePromptsPath || ''}
+                onChange={(e) => setSettings({...settings, stylePromptsPath: e.target.value})}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="/Users/xxx/Documents/style_prompts"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                风格提示词文件夹路径，包含 .txt 文件，每个文件对应一种风格
+              </p>
             </div>
           </div>
         </div>

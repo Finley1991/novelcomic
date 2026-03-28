@@ -68,6 +68,60 @@ export type PromptType = 'character_extraction' | 'storyboard_split' | 'image_pr
 
 export type PromptSnippetCategory = 'style' | 'quality' | 'lighting' | 'composition' | 'custom';
 
+export type ProjectType = 'novel_comic' | 'decompression_video';
+
+export type GenerationStatus = 'pending' | 'generating' | 'completed' | 'failed';
+
+export interface TextSegment {
+  id: string;
+  index: number;
+  text: string;
+}
+
+export interface AudioClip {
+  id: string;
+  index: number;
+  textSegmentId: string;
+  text: string;
+  audioPath?: string;
+  duration: number;
+  startTime: number;
+  endTime: number;
+  status: GenerationStatus;
+}
+
+export interface VideoClip {
+  id: string;
+  filePath: string;
+  fileName: string;
+  duration: number;
+  startTime: number;
+  endTime: number;
+}
+
+export interface ImageClip {
+  id: string;
+  index: number;
+  prompt: string;
+  imagePath?: string;
+  duration: number;
+  startTime: number;
+  endTime: number;
+  motion: MotionConfig;
+  status: GenerationStatus;
+}
+
+export interface DecompressionProjectData {
+  sourceText: string;
+  selectedStyle?: string;
+  textSegments: TextSegment[];
+  audioClips: AudioClip[];
+  totalAudioDuration: number;
+  videoClips: VideoClip[];
+  imageClips: ImageClip[];
+  status: string;
+}
+
 export interface PromptSnippet {
   id: string;
   name: string;
@@ -146,6 +200,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   status: string;
+  type: ProjectType;
   sourceText: string;
   stylePrompt: string;
   negativePrompt: string;
@@ -155,6 +210,7 @@ export interface Project {
   characters: Character[];
   scenes: Scene[];
   storyboards: Storyboard[];
+  decompressionData?: DecompressionProjectData;
 }
 
 export interface ComfyUINodeInfo {
@@ -261,6 +317,8 @@ export interface GlobalSettings {
   ollama: OllamaSettings;
   tts: TTSSettings;
   jianying: JianyingSettings;
+  decompressionVideoPath?: string;
+  stylePromptsPath?: string;
 }
 
 export interface ExportJianyingRequest {
@@ -289,6 +347,12 @@ export interface GeneratePromptsResponse {
   updated: number;
 }
 
+export interface CreateProjectRequest {
+  name: string;
+  sourceText?: string;
+  type?: ProjectType;
+}
+
 export interface UpdateProjectRequest {
   name?: string;
   sourceText?: string;
@@ -299,8 +363,8 @@ export interface UpdateProjectRequest {
 
 export const projectApi = {
   list: () => api.get<any[]>('/projects'),
-  create: (name: string, sourceText?: string) =>
-    api.post<Project>('/projects', { name, sourceText }),
+  create: (name: string, sourceText?: string, type?: ProjectType) =>
+    api.post<Project>('/projects', { name, sourceText, type }),
   get: (id: string) => api.get<Project>(`/projects/${id}`),
   update: (id: string, data: UpdateProjectRequest) =>
     api.put<Project>(`/projects/${id}`, data),
@@ -446,6 +510,23 @@ export const imagePromptApi = {
     api.post<ImagePromptTemplate>(`/image-prompts/templates/${id}/duplicate`, { newName }),
   renderTemplate: (id: string, data: RenderImagePromptRequest) =>
     api.post<RenderImagePromptResponse>(`/image-prompts/templates/${id}/render`, data),
+};
+
+// 解压视频 API
+export const decompressionApi = {
+  listVideos: () => api.get<{ filePath: string; fileName: string; duration: number }[]>('/decompression/videos'),
+  scanVideos: () => api.post<{ filePath: string; fileName: string; duration: number }[]>('/decompression/videos/scan'),
+  listStyles: () => api.get<string[]>('/decompression/styles'),
+  getStylePrompts: (styleName: string) => api.get<string[]>(`/decompression/styles/${styleName}/prompts`),
+  scanStyles: () => api.post<string[]>('/decompression/styles/scan'),
+  updateData: (projectId: string, data: { selectedStyle?: string }) =>
+    api.put<Project>(`/decompression/projects/${projectId}/data`, data),
+  splitText: (projectId: string) => api.post(`/decompression/projects/${projectId}/split-text`, {}),
+  generateAudio: (projectId: string) => api.post(`/decompression/projects/${projectId}/generate-audio`, {}),
+  selectVideos: (projectId: string) => api.post(`/decompression/projects/${projectId}/select-videos`, {}),
+  generateImages: (projectId: string, forceRegenerate?: boolean) => api.post(`/decompression/projects/${projectId}/generate-images`, { forceRegenerate }),
+  exportJianying: (projectId: string, params?: { canvasWidth?: number; canvasHeight?: number; fps?: number }) =>
+    api.post(`/decompression/projects/${projectId}/export-jianying`, params || {}),
 };
 
 export default api;

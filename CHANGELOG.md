@@ -4,6 +4,117 @@
 
 ### 2026-03-28
 
+#### 解压视频混剪推文项目新功能
+- **全新解压视频项目类型**
+  - 新增 `ProjectType.DECOMPRESSION_VIDEO` 项目类型
+  - 新增 `DecompressionProjectData` 数据模型
+  - 新增 `DecompressionVideoEditor.tsx` 独立编辑页面
+  - 原小说漫画编辑器重命名为 `NovelComicEditor.tsx`
+  - Dashboard 支持两种项目类型的创建和显示
+
+- **解压视频素材管理**
+  - 新增 `VideoScanner` 类扫描视频素材目录
+  - 支持自动扫描解压视频素材并获取时长
+  - 智能视频选择算法：根据目标总时长自动选择视频组合
+  - 视频素材缓存机制，避免重复扫描
+
+- **风格提示词管理**
+  - 新增 `StylePromptScanner` 类扫描风格提示词目录
+  - 支持多级目录结构：`{style_name}/prompt.txt` 或 `{style_name}.txt`
+  - 可选择不同风格用于图片生成
+  - 随机选择风格提示词用于批量图片生成
+
+- **文本分段与配音生成**
+  - 按行自动拆分原始文本为文本片段
+  - 支持批量生成配音（TTS）
+  - 自动计算音频时长和时间轴
+  - 音频片段支持状态管理（pending/generating/completed/failed）
+
+- **AI 图片生成**
+  - 根据总音频时长计算需要的图片数量（每张15秒）
+  - 随机选择风格提示词生成图片
+  - 自动分配图片时间轴（每张15秒）
+  - 支持批量生成和断点续传
+  - 图片片段配置运动类型（随机选择缩放或平移）
+
+- **剪映草稿导出（解压视频）**
+  - 新增 `DecompressionJianyingExporter` 类
+  - 多轨道支持：
+    - 视频轨道（下层）：按顺序拼接解压视频素材
+    - 图片轨道（上层）：叠加图片素材，带关键帧动画
+    - 音频轨道：配音音频
+    - 字幕轨道：按配音文本显示字幕
+  - 顺序时间计算：确保片段无重叠、连续排列
+  - 素材自动复制到草稿目录
+  - 默认配置：
+    - 画布比例：9:16 (1080x1920 竖屏)
+    - 字幕字体：新青年体，字号 15
+    - 图片关键帧：从140%缩放(1.4)到100%缩放(1.0)
+
+#### 小说漫画编辑器改进
+- 原 `ProjectEditor.tsx` 拆分为两个独立编辑器
+- `NovelComicEditor.tsx` 专注于小说漫画项目
+- 保持原有的向导式6步工作流
+- 更新 API 调用以适配新的数据结构
+
+#### 技术改进
+- 新增 `MotionType` 枚举：支持7种运动类型（none/pan_left/pan_right/pan_up/pan_down/zoom_in/zoom_out）
+- 新增 `MotionConfig` 模型：配置运动参数（起始/结束缩放、位移等）
+- 新增 `TextSegment`、`AudioClip`、`VideoClip`、`ImageClip` 模型
+- 新增全局设置：`decompressionVideoPath`、`stylePromptsPath`
+- 新增完整的解压视频 API 端点：`/api/decompression/*`
+- 前端 TypeScript 类型完整更新
+
+#### 文件清单
+**新增文件:**
+- `backend/api/decompression.py` - 解压视频 API 端点
+- `backend/core/decompression_exporter.py` - 解压视频剪映导出器
+- `backend/core/decompression_utils.py` - 视频扫描和风格提示词工具
+- `docs/superpowers/specs/2026-03-28-decompression-video-design.md` - 解压视频设计文档
+- `docs/superpowers/plans/2026-03-28-decompression-video-implementation.md` - 解压视频实施计划
+- `frontend/src/pages/DecompressionVideoEditor.tsx` - 解压视频编辑器
+- `frontend/src/pages/NovelComicEditor.tsx` - 小说漫画编辑器（原 ProjectEditor）
+
+**修改文件:**
+- `backend/api/projects.py` - 支持创建两种类型项目
+- `backend/config.py` - 添加解压视频相关配置
+- `backend/core/comfyui.py` - 支持独立的解压视频图片生成
+- `backend/core/storage.py` - 支持 DecompressionProjectData
+- `backend/core/tts.py` - 支持解压视频音频生成
+- `backend/main.py` - 注册 decompression 路由
+- `backend/models/schemas.py` - 新增解压视频相关数据模型
+- `frontend/src/pages/Dashboard.tsx` - 支持创建两种类型项目
+- `frontend/src/pages/ProjectEditor.tsx` - 重定向到对应编辑器
+- `frontend/src/pages/Settings.tsx` - 添加解压视频设置
+- `frontend/src/services/api.ts` - 新增解压视频类型和 API
+- `frontend/vite.config.js` - 代理配置更新
+
+### 2026-03-28
+
+#### 剪映导出默认配置优化
+- **画布默认比例 9:16**
+  - 解压视频导出默认使用竖屏比例 (1080x1920)
+  - 适合抖音、快手等短视频平台
+
+- **字幕默认样式**
+  - 默认字体：新青年体
+  - 默认字号：15
+  - 自动换行，居中对齐
+
+- **图片关键帧动画**
+  - 默认缩放关键帧：起始 140% (1.4)，结束 100% (1.0)
+  - 15秒内平滑缩放，产生自然的视觉效果
+
+#### 文件清单
+**修改文件:**
+- `backend/core/decompression_exporter.py` - 添加默认配置
+
+### 2026-03-28
+
+#### UI/UX 全面优化升级
+
+### 2026-03-28
+
 #### UI/UX 全面优化升级
 - **全新视觉设计系统**
   - 温暖亲和风格配色：温暖的橙色与蓝色调搭配
