@@ -30,7 +30,6 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project>(initialProject);
   const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
 
   // 视频素材和风格相关状态
@@ -175,11 +174,11 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
       const updatedProject = {
         ...project,
         sourceText: localSourceText,
-        decompressionData: {
+        decompressionData: project.decompressionData ? {
           ...project.decompressionData,
           sourceText: localSourceText,
-        }
-      };
+        } : undefined,
+      } as Project;
       setProject(updatedProject);
       onProjectUpdate(updatedProject);
 
@@ -447,6 +446,8 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
       videoClips: [],
       imageClips: [],
       status: 'idle',
+      subtitleSegments: [],
+      uploadedAudioFiles: [],
     };
     // 使用本地 sourceText 而不是数据中的
     return {
