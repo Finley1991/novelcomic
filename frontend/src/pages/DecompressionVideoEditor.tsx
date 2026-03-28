@@ -8,6 +8,7 @@ import {
   type MotionConfig,
 } from '../services/api';
 import { WizardSteps, type WizardStep } from '../components/project/WizardSteps';
+import { useToast } from '../hooks/useToast';
 
 // 解压视频编辑器的向导步骤定义
 const decompressionWizardSteps: Omit<WizardStep, 'status'>[] = [
@@ -28,6 +29,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   onProjectUpdate,
 }) => {
   const { id } = useParams<{ id: string }>();
+  const { addToast } = useToast();
   const [project, setProject] = useState<Project>(initialProject);
   const [currentStep, setCurrentStep] = useState(0);
   const [polling, setPolling] = useState(false);
@@ -382,8 +384,16 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
       const response = await decompressionApi.uploadSubtitle(id, file);
       setLocalSourceText(response.data.textSegments.map((t: any) => t.text).join('\n'));
       await loadProject();
+      addToast({
+        type: 'success',
+        message: `字幕上传成功！共 ${response.data.textSegments.length} 个片段`,
+      });
     } catch (error) {
       console.error('Failed to upload subtitle:', error);
+      addToast({
+        type: 'error',
+        message: '字幕上传失败，请重试',
+      });
     } finally {
       setUploadingSubtitle(false);
     }
@@ -394,8 +404,16 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     try {
       await decompressionApi.deleteSubtitle(id);
       await loadProject();
+      addToast({
+        type: 'success',
+        message: '字幕已删除',
+      });
     } catch (error) {
       console.error('Failed to delete subtitle:', error);
+      addToast({
+        type: 'error',
+        message: '删除字幕失败',
+      });
     }
   };
 
@@ -404,10 +422,18 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     if (!id) return;
     setUploadingAudio(true);
     try {
-      await decompressionApi.uploadAudio(id, file);
+      const response = await decompressionApi.uploadAudio(id, file);
       await loadProject();
+      addToast({
+        type: 'success',
+        message: `音频上传成功：${file.name}`,
+      });
     } catch (error) {
       console.error('Failed to upload audio:', error);
+      addToast({
+        type: 'error',
+        message: '音频上传失败，请重试',
+      });
     } finally {
       setUploadingAudio(false);
     }
@@ -418,10 +444,18 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     setUploadingAudio(true);
     try {
       const fileArray = Array.from(files);
-      await decompressionApi.uploadAudios(id, fileArray);
+      const response = await decompressionApi.uploadAudios(id, fileArray);
       await loadProject();
+      addToast({
+        type: 'success',
+        message: `成功上传 ${fileArray.length} 个音频文件`,
+      });
     } catch (error) {
       console.error('Failed to upload audios:', error);
+      addToast({
+        type: 'error',
+        message: '音频上传失败，请重试',
+      });
     } finally {
       setUploadingAudio(false);
     }
@@ -432,8 +466,16 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     try {
       await decompressionApi.deleteUploadedAudios(id);
       await loadProject();
+      addToast({
+        type: 'success',
+        message: '已清空上传的音频',
+      });
     } catch (error) {
       console.error('Failed to delete audios:', error);
+      addToast({
+        type: 'error',
+        message: '清空音频失败',
+      });
     }
   };
 
