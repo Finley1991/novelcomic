@@ -64,15 +64,26 @@ class ProjectType(str, Enum):
     DECOMPRESSION_VIDEO = "decompression_video"  # 解压视频混剪项目
 ```
 
+### 数据模型设计说明
+
+**设计原则：** 扩展现有 Project 模型，使用统一的 Project 结构存储两种项目类型。
+- 现有字段保持不变（向后兼容）
+- 新增 `type` 字段区分项目类型
+- 新增 `decompressionData` 字段存储解压视频项目特定数据
+- AI 推文视频项目继续使用原有的 `characters`, `scenes`, `storyboards` 等字段
+
 ### 修改现有 Project 模型
 
 ```python
 class Project(BaseModel):
     # ... 现有字段 ...
     type: ProjectType = ProjectType.NOVEL_COMIC  # 新增，默认向后兼容
+
+    # 解压视频项目特定数据（仅 type=DECOMPRESSION_VIDEO 时使用）
+    decompressionData: Optional["DecompressionProjectData"] = None
 ```
 
-### 解压视频项目数据模型
+### 解压视频项目数据模型（作为 Project 的嵌套数据）
 
 ```python
 class TextSegment(BaseModel):
@@ -117,14 +128,8 @@ class ImageClip(BaseModel):
     status: GenerationStatus = GenerationStatus.PENDING
 
 
-class DecompressionProject(BaseModel):
-    """解压视频混剪项目"""
-    # 基础信息
-    id: str
-    name: str
-    type: ProjectType = ProjectType.DECOMPRESSION_VIDEO
-    createdAt: datetime
-    updatedAt: datetime
+class DecompressionProjectData(BaseModel):
+    """解压视频混剪项目特定数据（嵌套在 Project.decompressionData 中）"""
 
     # 小说文本
     sourceText: str = ""
@@ -172,6 +177,10 @@ class GlobalSettings(BaseModel):
   - 文件名
   - 视频时长
 - **缓存:** 扫描结果缓存，避免重复读取
+  - 缓存格式: JSON 文件，存储在 `data/decompression_video_cache.json`
+  - 缓存内容: 文件路径、文件名、时长、文件修改时间戳
+  - 缓存失效策略: 扫描时检查文件修改时间，已修改或新增的文件重新读取
+  - 手动触发: 点击"重新扫描"按钮清除缓存并重新扫描
 
 ### 风格提示词目录
 
@@ -245,23 +254,31 @@ class GlobalSettings(BaseModel):
 
 ### 轨道安排
 
+**设计说明:** 如果 pyJianYingDraft 库不支持多视频轨道，则采用简化方案：
+- 方案 A（优先）: 视频和图片都放在 Screen 轨道，按时间线拼接
+- 方案 B（备用）: 仅使用视频素材，图片素材功能暂缓
+
 | 轨道 | 内容 | 说明 |
 |------|------|------|
-| Screen | 解压视频 | 完整使用，按顺序拼接 |
-| 额外视频轨道 | 图片素材 | 每张 15 秒，带 MotionConfig 动效 |
-| Subtitle | 字幕 | 按配音文本时间线 |
-| TTS | 音频 | 按配音时间线 |
+| Screen (index 0) | 解压视频 + 图片素材 | 按时间线顺序拼接 |
+| Subtitle (index 1) | 字幕 | 按配音文本时间线 |
+| TTS (index 2) | 音频 | 按配音时间线 |
 
 ### 时间线计算
 
-1. 总时长 = `max(音频总时长, 视频总时长, 图片总时长)`
-2. 视频素材: 从 0 开始按顺序拼接
-3. 图片素材: 从 0 开始按顺序拼接（每张 15 秒）
-4. 音频+字幕: 精确按时间线放置
+1. **目标时长** = 音频总时长（以此为基准）
+2. **视频素材选择**: 累加时长直到 ≥ 目标时长，视频保持完整不截断
+3. **图片素材计算**: 数量 = `ceil(目标时长 / 15)`，每张固定 15 秒
+4. **最终总时长** = `max(视频总时长, 图片总时长)`（确保 ≥ 目标时长）
+5. **时间线拼接**:
+   - 视频素材: 从 0 开始按顺序完整拼接
+   - 图片素材: 从 0 开始按顺序拼接（每张 15 秒）
+   - 音频+字幕: 精确按时间线放置（从 0 开始）
 
 **注意:**
 - 音频和字幕严格按文本片段的时间线
-- 视频和图片只要总时长够即可，不需要和音频同步
+- 视频和图片总时长 ≥ 音频总时长即可，不需要和音频时间线对齐
+- 视频和图片超出音频时长的部分保持完整，不截断
 
 ## API 端点设计
 
