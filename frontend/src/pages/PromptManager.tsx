@@ -134,23 +134,23 @@ const PromptManager: React.FC = () => {
   const displayTemplate = editing ? editForm : selectedTemplate;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-transition">
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-blue-500 hover:text-blue-600"
+              className="text-primary-500 hover:text-primary-600"
             >
               ← 返回
             </button>
-            <h2 className="text-2xl font-bold">Prompt 模板管理器</h2>
+            <h2 className="text-2xl font-bold text-light-text-primary dark:text-dark-text-primary">Prompt 模板管理器</h2>
           </div>
         </div>
 
         {/* 类型标签页 */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="flex border-b">
+        <div className="card p-2 mb-6">
+          <div className="flex gap-2">
             {(Object.keys(typeLabels) as PromptType[]).map((type) => (
               <button
                 key={type}
@@ -158,10 +158,10 @@ const PromptManager: React.FC = () => {
                   setCurrentType(type);
                   setSelectedTemplate(null);
                 }}
-                className={`px-6 py-4 font-medium ${
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-150 ${
                   currentType === type
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-primary-500 text-white'
+                    : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-divider dark:hover:bg-dark-divider'
                 }`}
               >
                 {typeLabels[type]}
@@ -172,12 +172,12 @@ const PromptManager: React.FC = () => {
 
         {/* 分镜拆分旧版提示 */}
         {currentType === 'storyboard_split' && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="card p-4 mb-6 border-l-4 border-amber-500">
             <div className="flex items-start gap-3">
-              <span className="text-yellow-600 text-xl">⚠️</span>
+              <span className="text-amber-500 text-xl">⚠️</span>
               <div>
-                <h4 className="font-medium text-yellow-800 mb-1">分镜拆分已更新</h4>
-                <p className="text-yellow-700 text-sm">
+                <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-1">分镜拆分已更新</h4>
+                <p className="text-light-text-secondary dark:text-dark-text-secondary text-sm">
                   当前版本已改用按行分割的方式创建分镜，不再使用 LLM 模板进行智能拆分。
                   此页面的模板仅用于历史参考。
                 </p>
@@ -189,20 +189,20 @@ const PromptManager: React.FC = () => {
         <div className="flex gap-6">
           {/* 模板列表 */}
           <div className="w-64 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow p-4">
-              <h3 className="font-semibold mb-4 text-gray-700">模板列表</h3>
+            <div className="card p-4">
+              <h3 className="font-semibold mb-4 text-light-text-primary dark:text-dark-text-primary">模板列表</h3>
 
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-500 mb-2">预设</h4>
+                <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">预设</h4>
                 <div className="space-y-1">
                   {presets.map((template) => (
                     <button
                       key={template.id}
                       onClick={() => handleSelectTemplate(template)}
-                      className={`w-full text-left px-3 py-2 rounded text-sm ${
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                         selectedTemplate?.id === template.id
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
+                          ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                          : 'hover:bg-light-divider dark:hover:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary'
                       }`}
                     >
                       {template.name}
@@ -212,16 +212,16 @@ const PromptManager: React.FC = () => {
               </div>
 
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-500 mb-2">我的模板</h4>
+                <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">我的模板</h4>
                 <div className="space-y-1">
                   {userTemplates.map((template) => (
                     <button
                       key={template.id}
                       onClick={() => handleSelectTemplate(template)}
-                      className={`w-full text-left px-3 py-2 rounded text-sm ${
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
                         selectedTemplate?.id === template.id
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'hover:bg-gray-50'
+                          ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                          : 'hover:bg-light-divider dark:hover:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary'
                       }`}
                     >
                       {template.name}
@@ -245,7 +245,7 @@ const PromptManager: React.FC = () => {
                     console.error('Failed to create template:', error);
                   }
                 }}
-                className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 text-sm"
+                className="w-full btn-primary text-sm"
               >
                 + 新建模板
               </button>
@@ -255,17 +255,17 @@ const PromptManager: React.FC = () => {
           {/* 编辑器 */}
           <div className="flex-1">
             {loading ? (
-              <div className="bg-white rounded-lg shadow p-6">
-                加载中...
+              <div className="card p-6">
+                <span className="text-light-text-secondary dark:text-dark-text-secondary">加载中...</span>
               </div>
             ) : !displayTemplate ? (
-              <div className="bg-white rounded-lg shadow p-6">
-                <p className="text-gray-500">请选择一个模板</p>
+              <div className="card p-6">
+                <p className="text-light-text-secondary dark:text-dark-text-secondary">请选择一个模板</p>
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="card p-6">
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="input-label">
                     名称
                   </label>
                   {editing ? (
@@ -273,16 +273,16 @@ const PromptManager: React.FC = () => {
                       type="text"
                       value={editForm.name || ''}
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      className="w-full border rounded px-3 py-2"
+                      className="input-field w-full"
                       maxLength={100}
                     />
                   ) : (
-                    <div className="text-lg font-medium">{displayTemplate.name}</div>
+                    <div className="text-lg font-medium text-light-text-primary dark:text-dark-text-primary">{displayTemplate.name}</div>
                   )}
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="input-label">
                     描述
                   </label>
                   {editing ? (
@@ -290,42 +290,42 @@ const PromptManager: React.FC = () => {
                       type="text"
                       value={editForm.description || ''}
                       onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                      className="w-full border rounded px-3 py-2"
+                      className="input-field w-full"
                     />
                   ) : (
-                    <div className="text-gray-600">{displayTemplate.description || '无描述'}</div>
+                    <div className="text-light-text-secondary dark:text-dark-text-secondary">{displayTemplate.description || '无描述'}</div>
                   )}
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="input-label">
                     System Prompt
                   </label>
                   {editing ? (
                     <textarea
                       value={editForm.systemPrompt || ''}
                       onChange={(e) => setEditForm({ ...editForm, systemPrompt: e.target.value })}
-                      className="w-full border rounded px-3 py-2 h-32 font-mono text-sm"
+                      className="input-field w-full h-32 font-mono text-sm"
                     />
                   ) : (
-                    <div className="bg-gray-50 rounded p-3 font-mono text-sm whitespace-pre-wrap">
+                    <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-3 font-mono text-sm whitespace-pre-wrap text-light-text-primary dark:text-dark-text-primary">
                       {displayTemplate.systemPrompt || '空'}
                     </div>
                   )}
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="input-label">
                     User Prompt
                   </label>
                   {editing ? (
                     <textarea
                       value={editForm.userPrompt || ''}
                       onChange={(e) => setEditForm({ ...editForm, userPrompt: e.target.value })}
-                      className="w-full border rounded px-3 py-2 h-48 font-mono text-sm"
+                      className="input-field w-full h-48 font-mono text-sm"
                     />
                   ) : (
-                    <div className="bg-gray-50 rounded p-3 font-mono text-sm whitespace-pre-wrap">
+                    <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-3 font-mono text-sm whitespace-pre-wrap text-light-text-primary dark:text-dark-text-primary">
                       {displayTemplate.userPrompt || '空'}
                     </div>
                   )}
@@ -333,7 +333,7 @@ const PromptManager: React.FC = () => {
 
                 {editing && (
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="input-label">
                       可用变量
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -341,14 +341,14 @@ const PromptManager: React.FC = () => {
                         <div key={v.name} className="flex gap-1">
                           <button
                             onClick={() => insertVariable(v.name, 'systemPrompt')}
-                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-mono"
+                            className="px-2 py-1 bg-light-divider dark:bg-dark-divider hover:bg-light-border dark:hover:bg-dark-border rounded-lg text-xs font-mono text-light-text-primary dark:text-dark-text-primary transition-all duration-150"
                             title={`${v.description} (插入到 System Prompt)`}
                           >
                             {`{${v.name}}`} → S
                           </button>
                           <button
                             onClick={() => insertVariable(v.name, 'userPrompt')}
-                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-mono"
+                            className="px-2 py-1 bg-light-divider dark:bg-dark-divider hover:bg-light-border dark:hover:bg-dark-border rounded-lg text-xs font-mono text-light-text-primary dark:text-dark-text-primary transition-all duration-150"
                             title={`${v.description} (插入到 User Prompt)`}
                           >
                             {`{${v.name}}`} → U
@@ -364,7 +364,7 @@ const PromptManager: React.FC = () => {
                     <>
                       <button
                         onClick={saveEdit}
-                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                        className="btn-primary"
                       >
                         保存
                       </button>
@@ -373,7 +373,7 @@ const PromptManager: React.FC = () => {
                           setEditing(false);
                           setEditForm({});
                         }}
-                        className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                        className="btn-secondary"
                       >
                         取消
                       </button>
@@ -383,21 +383,21 @@ const PromptManager: React.FC = () => {
                       {!selectedTemplate?.isPreset && (
                         <button
                           onClick={startEdit}
-                          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                          className="btn-primary"
                         >
                           编辑
                         </button>
                       )}
                       <button
                         onClick={handleDuplicate}
-                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                        className="btn-secondary"
                       >
                         复制
                       </button>
                       {!selectedTemplate?.isPreset && (
                         <button
                           onClick={handleDelete}
-                          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                          className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
                         >
                           删除
                         </button>

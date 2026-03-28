@@ -275,33 +275,32 @@ const ImagePromptManager: React.FC = () => {
   const displayTemplate = editing ? editForm : selectedTemplate;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-transition">
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/')}
-              className="text-blue-500 hover:text-blue-600"
+              className="text-primary-500 hover:text-primary-600"
             >
               ← 返回
             </button>
-            <h2 className="text-2xl font-bold">图片生成提示词管理</h2>
+            <h2 className="text-2xl font-bold text-light-text-primary dark:text-dark-text-primary">图片生成提示词管理</h2>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="flex border-b">
+        <div className="card p-2 mb-6">
+          <div className="flex gap-2">
             <button
               onClick={() => {
                 setCurrentTab('snippets');
                 setSelectedTemplate(null);
               }}
-              className={
-                'px-6 py-4 font-medium ' +
-                (currentTab === 'snippets'
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700')
-              }
+              className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-150 ${
+                currentTab === 'snippets'
+                  ? 'bg-primary-500 text-white'
+                  : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-divider dark:hover:bg-dark-divider'
+              }`}
             >
               提示词片段
             </button>
@@ -310,12 +309,11 @@ const ImagePromptManager: React.FC = () => {
                 setCurrentTab('templates');
                 setSelectedSnippet(null);
               }}
-              className={
-                'px-6 py-4 font-medium ' +
-                (currentTab === 'templates'
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700')
-              }
+              className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-150 ${
+                currentTab === 'templates'
+                  ? 'bg-primary-500 text-white'
+                  : 'text-light-text-secondary dark:text-dark-text-secondary hover:bg-light-divider dark:hover:bg-dark-divider'
+              }`}
             >
               提示词模板
             </button>
@@ -324,16 +322,16 @@ const ImagePromptManager: React.FC = () => {
 
         <div className="flex gap-6">
           <div className="w-72 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow p-4">
+            <div className="card p-4">
               {currentTab === 'snippets' ? (
                 <React.Fragment>
-                  <h3 className="font-semibold mb-4 text-gray-700">片段列表</h3>
+                  <h3 className="font-semibold mb-4 text-light-text-primary dark:text-dark-text-primary">片段列表</h3>
 
                   <div className="mb-4">
                     <select
                       value={snippetFilter}
                       onChange={(e) => setSnippetFilter(e.target.value as any)}
-                      className="w-full border rounded px-3 py-2 text-sm"
+                      className="input-field w-full text-sm"
                     >
                       <option value="all">全部分类</option>
                       {(Object.keys(categoryLabels) as PromptSnippetCategory[]).map((cat) => (
@@ -343,18 +341,17 @@ const ImagePromptManager: React.FC = () => {
                   </div>
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">预设</h4>
+                    <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">预设</h4>
                     <div className="space-y-1">
                       {presetSnippets.map((snippet) => (
                         <button
                           key={snippet.id}
                           onClick={() => handleSelectSnippet(snippet)}
-                          className={
-                            'w-full text-left px-3 py-2 rounded text-sm ' +
-                            (selectedSnippet?.id === snippet.id
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'hover:bg-gray-50')
-                          }
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+                            selectedSnippet?.id === snippet.id
+                              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                              : 'hover:bg-light-divider dark:hover:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary'
+                          }`}
                         >
                           {snippet.name}
                         </button>
@@ -363,18 +360,17 @@ const ImagePromptManager: React.FC = () => {
                   </div>
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">我的片段</h4>
+                    <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">我的片段</h4>
                     <div className="space-y-1">
                       {userSnippets.map((snippet) => (
                         <button
                           key={snippet.id}
                           onClick={() => handleSelectSnippet(snippet)}
-                          className={
-                            'w-full text-left px-3 py-2 rounded text-sm ' +
-                            (selectedSnippet?.id === snippet.id
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'hover:bg-gray-50')
-                          }
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+                            selectedSnippet?.id === snippet.id
+                              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                              : 'hover:bg-light-divider dark:hover:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary'
+                          }`}
                         >
                           {snippet.name}
                         </button>
@@ -384,28 +380,27 @@ const ImagePromptManager: React.FC = () => {
 
                   <button
                     onClick={handleCreateSnippet}
-                    className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 text-sm"
+                    className="w-full btn-primary text-sm"
                   >
                     + 新建片段
                   </button>
                 </React.Fragment>
               ) : (
                 <React.Fragment>
-                  <h3 className="font-semibold mb-4 text-gray-700">模板列表</h3>
+                  <h3 className="font-semibold mb-4 text-light-text-primary dark:text-dark-text-primary">模板列表</h3>
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">预设</h4>
+                    <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">预设</h4>
                     <div className="space-y-1">
                       {presetTemplates.map((template) => (
                         <button
                           key={template.id}
                           onClick={() => handleSelectTemplate(template)}
-                          className={
-                            'w-full text-left px-3 py-2 rounded text-sm ' +
-                            (selectedTemplate?.id === template.id
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'hover:bg-gray-50')
-                          }
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+                            selectedTemplate?.id === template.id
+                              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                              : 'hover:bg-light-divider dark:hover:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary'
+                          }`}
                         >
                           {template.name}
                         </button>
@@ -414,18 +409,17 @@ const ImagePromptManager: React.FC = () => {
                   </div>
 
                   <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">我的模板</h4>
+                    <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">我的模板</h4>
                     <div className="space-y-1">
                       {userTemplates.map((template) => (
                         <button
                           key={template.id}
                           onClick={() => handleSelectTemplate(template)}
-                          className={
-                            'w-full text-left px-3 py-2 rounded text-sm ' +
-                            (selectedTemplate?.id === template.id
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'hover:bg-gray-50')
-                          }
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+                            selectedTemplate?.id === template.id
+                              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                              : 'hover:bg-light-divider dark:hover:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary'
+                          }`}
                         >
                           {template.name}
                         </button>
@@ -435,7 +429,7 @@ const ImagePromptManager: React.FC = () => {
 
                   <button
                     onClick={handleCreateTemplate}
-                    className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 text-sm"
+                    className="w-full btn-primary text-sm"
                   >
                     + 新建模板
                   </button>
@@ -446,18 +440,18 @@ const ImagePromptManager: React.FC = () => {
 
           <div className="flex-1">
             {loading ? (
-              <div className="bg-white rounded-lg shadow p-6">
-                加载中...
+              <div className="card p-6">
+                <span className="text-light-text-secondary dark:text-dark-text-secondary">加载中...</span>
               </div>
             ) : currentTab === 'snippets' ? (
               !displaySnippet ? (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-500">请选择一个片段</p>
+                <div className="card p-6">
+                  <p className="text-light-text-secondary dark:text-dark-text-secondary">请选择一个片段</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="card p-6">
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       名称
                     </label>
                     {editing ? (
@@ -465,37 +459,37 @@ const ImagePromptManager: React.FC = () => {
                         type="text"
                         value={editForm.name || ''}
                         onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                        className="w-full border rounded px-3 py-2"
+                        className="input-field w-full"
                         maxLength={100}
                       />
                     ) : (
-                      <div className="text-lg font-medium">{displaySnippet.name}</div>
+                      <div className="text-lg font-medium text-light-text-primary dark:text-dark-text-primary">{displaySnippet.name}</div>
                     )}
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       分类
                     </label>
                     {editing ? (
                       <select
                         value={editForm.category || 'custom'}
                         onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                        className="w-full border rounded px-3 py-2"
+                        className="input-field w-full"
                       >
                         {(Object.keys(categoryLabels) as PromptSnippetCategory[]).map((cat) => (
                           <option key={cat} value={cat}>{categoryLabels[cat]}</option>
                         ))}
                       </select>
                     ) : (
-                      <div className="text-gray-600">
+                      <div className="text-light-text-secondary dark:text-dark-text-secondary">
                         {categoryLabels[displaySnippet.category as PromptSnippetCategory]}
                       </div>
                     )}
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       描述
                     </label>
                     {editing ? (
@@ -503,25 +497,25 @@ const ImagePromptManager: React.FC = () => {
                         type="text"
                         value={editForm.description || ''}
                         onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                        className="w-full border rounded px-3 py-2"
+                        className="input-field w-full"
                       />
                     ) : (
-                      <div className="text-gray-600">{displaySnippet.description || '无描述'}</div>
+                      <div className="text-light-text-secondary dark:text-dark-text-secondary">{displaySnippet.description || '无描述'}</div>
                     )}
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       内容
                     </label>
                     {editing ? (
                       <textarea
                         value={editForm.content || ''}
                         onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
-                        className="w-full border rounded px-3 py-2 h-32 font-mono text-sm"
+                        className="input-field w-full h-32 font-mono text-sm"
                       />
                     ) : (
-                      <div className="bg-gray-50 rounded p-3 font-mono text-sm whitespace-pre-wrap">
+                      <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-3 font-mono text-sm whitespace-pre-wrap text-light-text-primary dark:text-dark-text-primary">
                         {displaySnippet.content || '空'}
                       </div>
                     )}
@@ -532,7 +526,7 @@ const ImagePromptManager: React.FC = () => {
                       <React.Fragment>
                         <button
                           onClick={saveEdit}
-                          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                          className="btn-primary"
                         >
                           保存
                         </button>
@@ -541,7 +535,7 @@ const ImagePromptManager: React.FC = () => {
                             setEditing(false);
                             setEditForm({});
                           }}
-                          className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                          className="btn-secondary"
                         >
                           取消
                         </button>
@@ -551,21 +545,21 @@ const ImagePromptManager: React.FC = () => {
                         {!selectedSnippet?.isPreset && (
                           <button
                             onClick={startEdit}
-                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                            className="btn-primary"
                           >
                             编辑
                           </button>
                         )}
                         <button
                           onClick={handleDuplicate}
-                          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                          className="btn-secondary"
                         >
                           复制
                         </button>
                         {!selectedSnippet?.isPreset && (
                           <button
                             onClick={handleDelete}
-                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                            className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
                           >
                             删除
                           </button>
@@ -577,13 +571,13 @@ const ImagePromptManager: React.FC = () => {
               )
             ) : (
               !displayTemplate ? (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-500">请选择一个模板</p>
+                <div className="card p-6">
+                  <p className="text-light-text-secondary dark:text-dark-text-secondary">请选择一个模板</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="card p-6">
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       名称
                     </label>
                     {editing ? (
@@ -591,16 +585,16 @@ const ImagePromptManager: React.FC = () => {
                         type="text"
                         value={editForm.name || ''}
                         onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                        className="w-full border rounded px-3 py-2"
+                        className="input-field w-full"
                         maxLength={100}
                       />
                     ) : (
-                      <div className="text-lg font-medium">{displayTemplate.name}</div>
+                      <div className="text-lg font-medium text-light-text-primary dark:text-dark-text-primary">{displayTemplate.name}</div>
                     )}
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       描述
                     </label>
                     {editing ? (
@@ -608,25 +602,25 @@ const ImagePromptManager: React.FC = () => {
                         type="text"
                         value={editForm.description || ''}
                         onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                        className="w-full border rounded px-3 py-2"
+                        className="input-field w-full"
                       />
                     ) : (
-                      <div className="text-gray-600">{displayTemplate.description || '无描述'}</div>
+                      <div className="text-light-text-secondary dark:text-dark-text-secondary">{displayTemplate.description || '无描述'}</div>
                     )}
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="input-label">
                       模板字符串
                     </label>
                     {editing ? (
                       <textarea
                         value={editForm.template || ''}
                         onChange={(e) => setEditForm({ ...editForm, template: e.target.value })}
-                        className="w-full border rounded px-3 py-2 h-24 font-mono text-sm"
+                        className="input-field w-full h-24 font-mono text-sm"
                       />
                     ) : (
-                      <div className="bg-gray-50 rounded p-3 font-mono text-sm whitespace-pre-wrap">
+                      <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-3 font-mono text-sm whitespace-pre-wrap text-light-text-primary dark:text-dark-text-primary">
                         {displayTemplate.template || '空'}
                       </div>
                     )}
@@ -634,7 +628,7 @@ const ImagePromptManager: React.FC = () => {
 
                   {editing && (
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="input-label">
                         可用变量
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -642,7 +636,7 @@ const ImagePromptManager: React.FC = () => {
                           <button
                             key={v.name}
                             onClick={() => insertVariable(v.name)}
-                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-mono"
+                            className="px-2 py-1 bg-light-divider dark:bg-dark-divider hover:bg-light-border dark:hover:bg-dark-border rounded-lg text-xs font-mono text-light-text-primary dark:text-dark-text-primary transition-all duration-150"
                             title={v.description}
                           >
                             {'{' + v.name + '}'}
@@ -653,21 +647,22 @@ const ImagePromptManager: React.FC = () => {
                   )}
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="input-label">
                       默认片段
                     </label>
                     {editing ? (
-                      <div className="border rounded p-3 max-h-48 overflow-y-auto">
+                      <div className="border border-light-border dark:border-dark-border rounded-lg p-3 max-h-48 overflow-y-auto">
                         {snippets.map((snippet) => (
                           <label key={snippet.id} className="flex items-center gap-2 py-1">
                             <input
                               type="checkbox"
                               checked={(editForm.snippetIds || []).includes(snippet.id)}
                               onChange={() => toggleSnippetInTemplate(snippet.id)}
+                              className="rounded border-light-border dark:border-dark-border"
                             />
-                            <span className="text-sm">
+                            <span className="text-sm text-light-text-primary dark:text-dark-text-primary">
                               {snippet.name}
-                              <span className="text-gray-400 ml-2">
+                              <span className="text-light-text-tertiary dark:text-dark-text-tertiary ml-2">
                                 ({categoryLabels[snippet.category]})
                               </span>
                             </span>
@@ -675,15 +670,15 @@ const ImagePromptManager: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <div className="border rounded p-3">
+                      <div className="border border-light-border dark:border-dark-border rounded-lg p-3">
                         {displayTemplate.snippetIds.length === 0 ? (
-                          <span className="text-gray-400 text-sm">未选择片段</span>
+                          <span className="text-light-text-tertiary dark:text-dark-text-tertiary text-sm">未选择片段</span>
                         ) : (
                           <div className="flex flex-wrap gap-2">
                             {displayTemplate.snippetIds.map((id: string) => {
                               const snippet = snippets.find(s => s.id === id);
                               return snippet ? (
-                                <span key={id} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                                <span key={id} className="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg text-xs">
                                   {snippet.name}
                                 </span>
                               ) : null;
@@ -695,63 +690,63 @@ const ImagePromptManager: React.FC = () => {
                   </div>
 
                   {!editing && selectedTemplate && (
-                    <div className="mb-4 border-t pt-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">预览渲染</h4>
+                    <div className="mb-4 border-t border-light-border dark:border-dark-border pt-4">
+                      <h4 className="input-label">预览渲染</h4>
 
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">场景描述</label>
+                          <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1 block">场景描述</label>
                           <input
                             type="text"
                             value={previewData.scene || ''}
                             onChange={(e) => setPreviewData({ ...previewData, scene: e.target.value })}
                             placeholder="森林中的小屋"
-                            className="w-full border rounded px-2 py-1 text-sm"
+                            className="input-field w-full text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">角色提示词</label>
+                          <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1 block">角色提示词</label>
                           <input
                             type="text"
                             value={previewData.characterPrompts || ''}
                             onChange={(e) => setPreviewData({ ...previewData, characterPrompts: e.target.value })}
                             placeholder="1girl, long hair"
-                            className="w-full border rounded px-2 py-1 text-sm"
+                            className="input-field w-full text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">项目风格</label>
+                          <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1 block">项目风格</label>
                           <input
                             type="text"
                             value={previewData.stylePrompt || ''}
                             onChange={(e) => setPreviewData({ ...previewData, stylePrompt: e.target.value })}
                             placeholder="watercolor style"
-                            className="w-full border rounded px-2 py-1 text-sm"
+                            className="input-field w-full text-sm"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">自定义内容</label>
+                          <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1 block">自定义内容</label>
                           <input
                             type="text"
                             value={previewData.custom || ''}
                             onChange={(e) => setPreviewData({ ...previewData, custom: e.target.value })}
                             placeholder=""
-                            className="w-full border rounded px-2 py-1 text-sm"
+                            className="input-field w-full text-sm"
                           />
                         </div>
                       </div>
 
                       <button
                         onClick={renderPreview}
-                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 text-sm mb-3"
+                        className="btn-secondary text-sm mb-3"
                       >
                         渲染预览
                       </button>
 
                       {renderedPreview && (
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">渲染结果</label>
-                          <div className="bg-gray-50 rounded p-3 font-mono text-sm whitespace-pre-wrap">
+                          <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1 block">渲染结果</label>
+                          <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-3 font-mono text-sm whitespace-pre-wrap text-light-text-primary dark:text-dark-text-primary">
                             {renderedPreview}
                           </div>
                         </div>
@@ -764,7 +759,7 @@ const ImagePromptManager: React.FC = () => {
                       <React.Fragment>
                         <button
                           onClick={saveEdit}
-                          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                          className="btn-primary"
                         >
                           保存
                         </button>
@@ -773,7 +768,7 @@ const ImagePromptManager: React.FC = () => {
                             setEditing(false);
                             setEditForm({});
                           }}
-                          className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                          className="btn-secondary"
                         >
                           取消
                         </button>
@@ -783,21 +778,21 @@ const ImagePromptManager: React.FC = () => {
                         {!selectedTemplate?.isPreset && (
                           <button
                             onClick={startEdit}
-                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                            className="btn-primary"
                           >
                             编辑
                           </button>
                         )}
                         <button
                           onClick={handleDuplicate}
-                          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                          className="btn-secondary"
                         >
                           复制
                         </button>
                         {!selectedTemplate?.isPreset && (
                           <button
                             onClick={handleDelete}
-                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                            className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
                           >
                             删除
                           </button>
