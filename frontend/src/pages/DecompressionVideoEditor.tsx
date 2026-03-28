@@ -577,38 +577,85 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="space-y-8 mb-6">
               {/* 视频素材 */}
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary">
-                    视频素材库
-                  </h4>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-500/20 flex items-center justify-center">
+                      <span className="text-primary-600 dark:text-primary-400 text-lg">🎬</span>
+                    </div>
+                    <h4 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
+                      视频素材库
+                    </h4>
+                    <span className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary bg-light-divider dark:bg-dark-divider px-2 py-1 rounded-full">
+                      {availableVideos.length} 个
+                    </span>
+                  </div>
                   <button
                     onClick={handleScanVideos}
                     disabled={scanningVideos}
-                    className="text-sm text-primary-500 hover:text-primary-600 disabled:opacity-50"
+                    className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {scanningVideos ? '扫描中...' : '重新扫描'}
+                    {scanningVideos ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⟳</span> 扫描中...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span>⟳</span> 重新扫描
+                      </span>
+                    )}
                   </button>
                 </div>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {availableVideos.map((video, idx) => (
-                    <div
-                      key={idx}
-                      className="border border-light-border dark:border-dark-border rounded-lg p-3"
-                    >
-                      <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary">
-                        {video.fileName}
+
+                <div className="card p-4">
+                  {availableVideos.length > 0 ? (
+                    <div className="relative">
+                      <div className="flex gap-3 overflow-x-auto pb-2 scroll-smooth snap-x" style={{ scrollbarWidth: 'thin' }}>
+                        {availableVideos.map((video, idx) => (
+                          <div
+                            key={idx}
+                            className="flex-shrink-0 snap-start w-56"
+                          >
+                            <div className="bg-light-divider dark:bg-dark-divider rounded-xl p-4 h-full transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-lg flex-shrink-0">
+                                  📹
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary truncate" title={video.fileName}>
+                                    {video.fileName}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-card dark:bg-dark-card px-2 py-1 rounded-full">
+                                  <span>⏱</span>
+                                  <span>{video.duration.toFixed(1)}秒</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                        时长: {video.duration.toFixed(1)}秒
+                      <div className="flex justify-center mt-2">
+                        <span className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+                          ← 左右滑动查看更多 →
+                        </span>
                       </div>
                     </div>
-                  ))}
-                  {availableVideos.length === 0 && (
-                    <div className="text-center py-4 text-light-text-secondary dark:text-dark-text-secondary">
-                      暂无视频素材
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-light-divider dark:bg-dark-divider flex items-center justify-center">
+                        <span className="text-3xl text-light-text-tertiary dark:text-dark-text-tertiary">📭</span>
+                      </div>
+                      <p className="text-light-text-secondary dark:text-dark-text-secondary">
+                        暂无视频素材
+                      </p>
+                      <p className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary mt-1">
+                        请在设置中配置解压视频素材目录
+                      </p>
                     </div>
                   )}
                 </div>
@@ -617,58 +664,107 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               {/* 风格提示词 */}
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary">
-                    图片风格
-                  </h4>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-secondary-100 dark:bg-secondary-500/20 flex items-center justify-center">
+                      <span className="text-secondary-600 dark:text-secondary-400 text-lg">🎨</span>
+                    </div>
+                    <h4 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
+                      图片风格
+                    </h4>
+                    <span className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary bg-light-divider dark:bg-dark-divider px-2 py-1 rounded-full">
+                      {availableStyles.length} 种
+                    </span>
+                  </div>
                   <button
                     onClick={handleScanStyles}
                     disabled={scanningStyles}
-                    className="text-sm text-primary-500 hover:text-primary-600 disabled:opacity-50"
+                    className="btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {scanningStyles ? '扫描中...' : '重新扫描'}
+                    {scanningStyles ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⟳</span> 扫描中...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span>⟳</span> 重新扫描
+                      </span>
+                    )}
                   </button>
                 </div>
-                <div className="space-y-2">
-                  {availableStyles.map((style) => (
-                    <button
-                      key={style}
-                      onClick={() => handleStyleSelect(style)}
-                      className={`w-full text-left p-3 border rounded-lg transition-all ${
-                        project.decompressionData?.selectedStyle === style
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
-                          : 'border-light-border dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div className="font-medium text-light-text-primary dark:text-dark-text-primary">
-                          {style}
-                        </div>
-                        {project.decompressionData?.selectedStyle === style && (
-                          <span className="text-primary-500">✓</span>
-                        )}
+
+                <div className="card p-4">
+                  {availableStyles.length > 0 ? (
+                    <div className="relative">
+                      <div className="flex gap-3 overflow-x-auto pb-2 scroll-smooth snap-x" style={{ scrollbarWidth: 'thin' }}>
+                        {availableStyles.map((style) => (
+                          <button
+                            key={style}
+                            onClick={() => handleStyleSelect(style)}
+                            className={`flex-shrink-0 snap-start w-48 p-4 rounded-xl text-left transition-all duration-200 border-2 ${
+                              project.decompressionData?.selectedStyle === style
+                                ? 'border-primary-500 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-500/20 dark:to-primary-500/10 shadow-md -translate-y-0.5'
+                                : 'border-transparent bg-light-divider dark:bg-dark-divider hover:bg-light-border dark:hover:bg-dark-border hover:shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+                                project.decompressionData?.selectedStyle === style
+                                  ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white'
+                                  : 'bg-light-card dark:bg-dark-card text-light-text-secondary dark:text-dark-text-secondary'
+                              }`}>
+                                {project.decompressionData?.selectedStyle === style ? '✓' : '✨'}
+                              </div>
+                              {project.decompressionData?.selectedStyle === style && (
+                                <span className="text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-500/20 px-2 py-1 rounded-full">
+                                  已选择
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-semibold text-light-text-primary dark:text-dark-text-primary">
+                              {style}
+                            </div>
+                          </button>
+                        ))}
                       </div>
-                    </button>
-                  ))}
-                  {availableStyles.length === 0 && (
-                    <div className="text-center py-4 text-light-text-secondary dark:text-dark-text-secondary">
-                      暂无风格
+                      <div className="flex justify-center mt-2">
+                        <span className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary">
+                          ← 左右滑动查看更多 →
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-light-divider dark:bg-dark-divider flex items-center justify-center">
+                        <span className="text-3xl text-light-text-tertiary dark:text-dark-text-tertiary">🎭</span>
+                      </div>
+                      <p className="text-light-text-secondary dark:text-dark-text-secondary">
+                        暂无风格
+                      </p>
+                      <p className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary mt-1">
+                        请在设置中配置风格提示词目录
+                      </p>
                     </div>
                   )}
                 </div>
 
                 {selectedStylePrompts.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary mb-2">
-                      提示词预览
-                    </h5>
-                    <div className="bg-light-divider dark:bg-dark-divider rounded p-3">
+                  <div className="mt-6 card p-5 border-l-4 border-primary-500">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-500/20 flex items-center justify-center">
+                        <span className="text-primary-600 dark:text-primary-400">📝</span>
+                      </div>
+                      <h5 className="font-semibold text-light-text-primary dark:text-dark-text-primary">
+                        提示词预览
+                      </h5>
+                    </div>
+                    <div className="bg-light-divider dark:bg-dark-divider rounded-xl p-4 space-y-2">
                       {selectedStylePrompts.map((prompt, idx) => (
-                        <p
-                          key={idx}
-                          className="text-sm text-light-text-secondary dark:text-dark-text-secondary"
-                        >
-                          • {prompt}
-                        </p>
+                        <div key={idx} className="flex items-start gap-3">
+                          <span className="text-primary-500 mt-0.5">•</span>
+                          <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary leading-relaxed">
+                            {prompt}
+                          </p>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -692,27 +788,41 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
             )}
 
             {data.videoClips.length > 0 && (
-              <div>
-                <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">
-                  已选择的视频 ({data.videoClips.length} 个)
-                </h4>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {data.videoClips.map((clip) => (
+              <div className="card p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-success-100 dark:bg-success-500/20 flex items-center justify-center">
+                    <span className="text-success-600 dark:text-success-400 text-lg">✓</span>
+                  </div>
+                  <h4 className="font-semibold text-light-text-primary dark:text-dark-text-primary">
+                    已选择的视频
+                  </h4>
+                  <span className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary bg-success-100 dark:bg-success-500/20 text-success-700 dark:text-success-300 px-2 py-1 rounded-full">
+                    {data.videoClips.length} 个
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {data.videoClips.map((clip, index) => (
                     <div
                       key={clip.id}
-                      className="border border-light-border dark:border-dark-border rounded-lg p-3 flex justify-between items-center"
+                      className="bg-light-divider dark:bg-dark-divider rounded-xl p-4 flex items-center gap-4 transition-all duration-150 hover:bg-light-border dark:hover:bg-dark-border"
                     >
-                      <div>
-                        <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-success-500 to-success-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-light-text-primary dark:text-dark-text-primary truncate" title={clip.fileName}>
                           {clip.fileName}
                         </div>
-                        <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                          {clip.startTime.toFixed(1)}s - {clip.endTime.toFixed(1)}s
+                        <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                          时间轴: {clip.startTime.toFixed(1)}s - {clip.endTime.toFixed(1)}s
                         </div>
                       </div>
-                      <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                        {(clip.endTime - clip.startTime).toFixed(1)}s
-                      </span>
+                      <div className="flex-shrink-0">
+                        <span className="inline-flex items-center gap-1 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-card dark:bg-dark-card px-3 py-1 rounded-full">
+                          <span>⏱</span>
+                          <span>{(clip.endTime - clip.startTime).toFixed(1)}s</span>
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -901,9 +1011,17 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               <button
                 onClick={handleExportJianying}
                 disabled={exportingJianying}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {exportingJianying ? '导出中...' : '导出到剪映'}
+                {exportingJianying ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin">⟳</span> 导出中...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span>✂️</span> 导出到剪映
+                  </span>
+                )}
               </button>
             </div>
 
