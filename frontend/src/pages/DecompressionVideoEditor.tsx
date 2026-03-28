@@ -380,19 +380,24 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   const handleUploadSubtitle = async (file: File) => {
     if (!id) return;
     setUploadingSubtitle(true);
+    console.log('开始上传字幕文件:', file.name, file.size, file.type);
     try {
       const response = await decompressionApi.uploadSubtitle(id, file);
+      console.log('上传成功，响应数据:', response.data);
       setLocalSourceText(response.data.textSegments.map((t: any) => t.text).join('\n'));
       await loadProject();
       addToast({
         type: 'success',
         message: `字幕上传成功！共 ${response.data.textSegments.length} 个片段`,
       });
-    } catch (error) {
-      console.error('Failed to upload subtitle:', error);
+    } catch (error: any) {
+      console.error('字幕上传失败 - 详细错误:', error);
+      console.error('错误响应:', error?.response);
+      console.error('错误消息:', error?.message);
+      const errorMsg = error?.response?.data?.detail || error?.message || '字幕上传失败，请重试';
       addToast({
         type: 'error',
-        message: '字幕上传失败，请重试',
+        message: errorMsg,
       });
     } finally {
       setUploadingSubtitle(false);
@@ -408,11 +413,12 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
         type: 'success',
         message: '字幕已删除',
       });
-    } catch (error) {
-      console.error('Failed to delete subtitle:', error);
+    } catch (error: any) {
+      console.error('删除字幕失败:', error);
+      const errorMsg = error?.response?.data?.detail || error?.message || '删除字幕失败';
       addToast({
         type: 'error',
-        message: '删除字幕失败',
+        message: errorMsg,
       });
     }
   };
@@ -421,18 +427,22 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   const handleUploadAudio = async (file: File) => {
     if (!id) return;
     setUploadingAudio(true);
+    console.log('开始上传音频文件:', file.name, file.size, file.type);
     try {
       const response = await decompressionApi.uploadAudio(id, file);
+      console.log('音频上传成功，响应数据:', response.data);
       await loadProject();
       addToast({
         type: 'success',
         message: `音频上传成功：${file.name}`,
       });
-    } catch (error) {
-      console.error('Failed to upload audio:', error);
+    } catch (error: any) {
+      console.error('音频上传失败 - 详细错误:', error);
+      console.error('错误响应:', error?.response);
+      const errorMsg = error?.response?.data?.detail || error?.message || '音频上传失败，请重试';
       addToast({
         type: 'error',
-        message: '音频上传失败，请重试',
+        message: errorMsg,
       });
     } finally {
       setUploadingAudio(false);
@@ -442,19 +452,23 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   const handleUploadAudios = async (files: FileList) => {
     if (!id) return;
     setUploadingAudio(true);
+    console.log('开始批量上传音频文件，数量:', files.length);
     try {
       const fileArray = Array.from(files);
       const response = await decompressionApi.uploadAudios(id, fileArray);
+      console.log('批量上传成功，响应数据:', response.data);
       await loadProject();
       addToast({
         type: 'success',
         message: `成功上传 ${fileArray.length} 个音频文件`,
       });
-    } catch (error) {
-      console.error('Failed to upload audios:', error);
+    } catch (error: any) {
+      console.error('批量上传音频失败 - 详细错误:', error);
+      console.error('错误响应:', error?.response);
+      const errorMsg = error?.response?.data?.detail || error?.message || '音频上传失败，请重试';
       addToast({
         type: 'error',
-        message: '音频上传失败，请重试',
+        message: errorMsg,
       });
     } finally {
       setUploadingAudio(false);
@@ -470,11 +484,12 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
         type: 'success',
         message: '已清空上传的音频',
       });
-    } catch (error) {
-      console.error('Failed to delete audios:', error);
+    } catch (error: any) {
+      console.error('清空音频失败:', error);
+      const errorMsg = error?.response?.data?.detail || error?.message || '清空音频失败';
       addToast({
         type: 'error',
-        message: '清空音频失败',
+        message: errorMsg,
       });
     }
   };
