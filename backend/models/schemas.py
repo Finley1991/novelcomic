@@ -53,6 +53,15 @@ class GenerationStatus(str, Enum):
     FAILED = "failed"
 
 
+class SubtitleSegment(BaseModel):
+    """字幕片段"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    index: int
+    text: str
+    startTime: float = 0.0
+    endTime: float = 0.0
+
+
 class TextSegment(BaseModel):
     """按行拆分的文本片段"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -106,6 +115,11 @@ class DecompressionProjectData(BaseModel):
     videoClips: List[VideoClip] = Field(default_factory=list)
     imageClips: List[ImageClip] = Field(default_factory=list)
     status: str = "editing"
+    # 上传的字幕文件
+    subtitleFilePath: Optional[str] = None
+    subtitleSegments: List[SubtitleSegment] = Field(default_factory=list)
+    # 上传的音频文件（单文件或多个文件）
+    uploadedAudioFiles: List[str] = Field(default_factory=list)
 
 
 class PromptVariable(BaseModel):

@@ -72,6 +72,14 @@ export type ProjectType = 'novel_comic' | 'decompression_video';
 
 export type GenerationStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
+export interface SubtitleSegment {
+  id: string;
+  index: number;
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
 export interface TextSegment {
   id: string;
   index: number;
@@ -120,6 +128,9 @@ export interface DecompressionProjectData {
   videoClips: VideoClip[];
   imageClips: ImageClip[];
   status: string;
+  subtitleFilePath?: string;
+  subtitleSegments: SubtitleSegment[];
+  uploadedAudioFiles: string[];
 }
 
 export interface PromptSnippet {
@@ -527,6 +538,31 @@ export const decompressionApi = {
   generateImages: (projectId: string, forceRegenerate?: boolean) => api.post(`/decompression/projects/${projectId}/generate-images`, { forceRegenerate }),
   exportJianying: (projectId: string, params?: { canvasWidth?: number; canvasHeight?: number; fps?: number }) =>
     api.post(`/decompression/projects/${projectId}/export-jianying`, params || {}),
+  // 上传字幕
+  uploadSubtitle: (projectId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/decompression/projects/${projectId}/upload-subtitle`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteSubtitle: (projectId: string) => api.delete(`/decompression/projects/${projectId}/subtitle`),
+  // 上传音频
+  uploadAudio: (projectId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/decompression/projects/${projectId}/upload-audio`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  uploadAudios: (projectId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    return api.post(`/decompression/projects/${projectId}/upload-audios`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteUploadedAudios: (projectId: string) => api.delete(`/decompression/projects/${projectId}/audios`),
 };
 
 export default api;

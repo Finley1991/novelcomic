@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   projectApi,
@@ -57,6 +57,12 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   const [generateImagesError, setGenerateImagesError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
+
+  // 上传相关状态
+  const [uploadingSubtitle, setUploadingSubtitle] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const subtitleFileRef = useRef<HTMLInputElement>(null);
+  const audioFileRef = useRef<HTMLInputElement>(null);
 
   // 图片动效相关
   const [imageMotion, setImageMotion] = useState<MotionConfig>({
@@ -361,6 +367,69 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     }));
   };
 
+  // 字幕上传处理
+  const handleUploadSubtitle = async (file: File) => {
+    if (!id) return;
+    setUploadingSubtitle(true);
+    try {
+      const response = await decompressionApi.uploadSubtitle(id, file);
+      setLocalSourceText(response.data.textSegments.map((t: any) => t.text).join('\n'));
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to upload subtitle:', error);
+    } finally {
+      setUploadingSubtitle(false);
+    }
+  };
+
+  const handleDeleteSubtitle = async () => {
+    if (!id) return;
+    try {
+      await decompressionApi.deleteSubtitle(id);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to delete subtitle:', error);
+    }
+  };
+
+  // 音频上传处理
+  const handleUploadAudio = async (file: File) => {
+    if (!id) return;
+    setUploadingAudio(true);
+    try {
+      await decompressionApi.uploadAudio(id, file);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to upload audio:', error);
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const handleUploadAudios = async (files: FileList) => {
+    if (!id) return;
+    setUploadingAudio(true);
+    try {
+      const fileArray = Array.from(files);
+      await decompressionApi.uploadAudios(id, fileArray);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to upload audios:', error);
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const handleDeleteUploadedAudios = async () => {
+    if (!id) return;
+    try {
+      await decompressionApi.deleteUploadedAudios(id);
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to delete audios:', error);
+    }
+  };
+
   const getData = (): DecompressionProjectData => {
     const baseData = project.decompressionData || {
       sourceText: project.sourceText || '',
@@ -397,18 +466,93 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
                 文本输入
               </h3>
-              <button
-                onClick={handleSplitText}
-                disabled={splittingText || !data.sourceText.trim()}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {splittingText ? '拆分中...' : '按行拆分文本'}
-              </button>
+              <div className="flex gap-3">
+                <input
+                  ref={subtitleFileRef}
+                  type="file"
+                  accept=".srt,.vtt,.lrc,.txt"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleUploadSubtitle(e.target.files[0]);
+                    }
+                  }}
+                />
+                {data.subtitleFilePath ? (
+                  <button
+                    onClick={handleDeleteSubtitle}
+                    className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
+                  >
+                    删除字幕
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => subtitleFileRef.current?.click()}
+                    disabled={uploadingSubtitle}
+                    className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploadingSubtitle ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin">⟳</span> 上传中...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span>📝</span> 上传字幕文件
+                      </span>
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={handleSplitText}
+                  disabled={splittingText || !data.sourceText.trim()}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {splittingText ? '拆分中...' : '按行拆分文本'}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-6">
+              {/* 字幕上传提示 */}
+              <div className="bg-secondary-50 dark:bg-secondary-500/10 rounded-xl p-4 border border-secondary-200 dark:border-secondary-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-secondary-100 dark:bg-secondary-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-secondary-600 dark:text-secondary-400">💡</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-1">
+                      支持两种方式输入文本
+                    </h4>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                      方式1：直接在下方文本框中粘贴文本，然后点击"按行拆分文本"
+                    </p>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                      方式2：点击"上传字幕文件"（支持 .srt, .vtt, .lrc, .txt 格式）
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {data.subtitleFilePath && (
+                <div className="bg-success-50 dark:bg-success-500/10 rounded-xl p-4 border border-success-200 dark:border-success-500/20">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-success-100 dark:bg-success-500/20 flex items-center justify-center">
+                      <span className="text-success-600 dark:text-success-400">✓</span>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary">
+                        已上传字幕
+                      </h4>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                        {data.subtitleSegments.length} 个字幕片段
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="input-label">小说文本</label>
+                <label className="input-label">文本内容</label>
                 <textarea
                   value={localSourceText}
                   onChange={(e) => handleUpdateSourceText(e.target.value)}
@@ -467,16 +611,112 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
                 配音生成
               </h3>
-              <button
-                onClick={handleGenerateAudio}
-                disabled={
-                  generatingAudio || data.textSegments.length === 0
-                }
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {generatingAudio ? '生成中...' : '批量生成配音'}
-              </button>
+              <div className="flex gap-3">
+                <input
+                  ref={audioFileRef}
+                  type="file"
+                  accept=".wav,.mp3,.m4a"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      if (e.target.files.length === 1) {
+                        handleUploadAudio(e.target.files[0]);
+                      } else {
+                        handleUploadAudios(e.target.files);
+                      }
+                    }
+                  }}
+                />
+                {data.audioClips.length > 0 && data.uploadedAudioFiles.length > 0 && (
+                  <button
+                    onClick={handleDeleteUploadedAudios}
+                    className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
+                  >
+                    清空上传
+                  </button>
+                )}
+                <button
+                  onClick={() => audioFileRef.current?.click()}
+                  disabled={uploadingAudio}
+                  className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploadingAudio ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">⟳</span> 上传中...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span>🎵</span> 上传音频文件
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={handleGenerateAudio}
+                  disabled={
+                    generatingAudio || data.textSegments.length === 0
+                  }
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingAudio ? '生成中...' : '批量生成配音'}
+                </button>
+              </div>
             </div>
+
+            {/* 音频上传提示 */}
+            <div className="bg-secondary-50 dark:bg-secondary-500/10 rounded-xl p-4 border border-secondary-200 dark:border-secondary-500/20 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-secondary-100 dark:bg-secondary-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-secondary-600 dark:text-secondary-400">💡</span>
+                </div>
+                <div>
+                  <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-1">
+                    支持两种方式添加配音
+                  </h4>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                    方式1：点击"批量生成配音"使用AI生成配音
+                  </p>
+                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                    方式2：点击"上传音频文件"上传已有的音频文件（支持 .wav, .mp3, .m4a）
+                  </p>
+                  <p className="text-sm text-light-text-tertiary dark:text-dark-text-tertiary mt-2">
+                    提示：可以一次性选择多个音频文件上传
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {uploadingAudio && (
+              <div className="mb-6 bg-light-divider dark:bg-dark-divider rounded-lg p-4">
+                <div className="flex justify-between text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                  <span>正在上传音频...</span>
+                </div>
+                <div className="w-full bg-light-border dark:bg-dark-border rounded-full h-3">
+                  <div
+                    className="bg-primary-500 h-3 rounded-full transition-all duration-300 animate-pulse"
+                    style={{ width: '60%' }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
+            {data.uploadedAudioFiles.length > 0 && (
+              <div className="mb-6 bg-success-50 dark:bg-success-500/10 rounded-xl p-4 border border-success-200 dark:border-success-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-success-100 dark:bg-success-500/20 flex items-center justify-center">
+                    <span className="text-success-600 dark:text-success-400">✓</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary">
+                      已上传音频
+                    </h4>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                      {data.uploadedAudioFiles.length} 个音频文件 · 总时长 {data.totalAudioDuration.toFixed(1)} 秒
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {generatingAudio && (
               <div className="mb-6 bg-light-divider dark:bg-dark-divider rounded-lg p-4">
