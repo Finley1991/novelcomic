@@ -8,6 +8,7 @@ import math
 import wave
 from io import BytesIO
 import re
+from pymediainfo import MediaInfo
 
 from config import settings
 from models.schemas import (
@@ -22,6 +23,9 @@ from core.decompression_utils import VideoScanner, StylePromptScanner
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/decompression", tags=["decompression"])
+
+# 全局取消标志字典：project_id -> cancelled (bool)
+image_generation_cancel_flags: Dict[str, bool] = {}
 
 
 def get_video_scanner() -> VideoScanner:
@@ -205,8 +209,23 @@ async def select_videos(project_id: str, request: SelectVideosRequest):
         raise HTTPException(status_code=400, detail="Project data not initialized")
 
     target_duration = project.decompressionData.totalAudioDuration
+
+    # 如果音频时长为0，尝试从其他来源获取
     if target_duration <= 0:
-        raise HTTPException(status_code=400, detail="No audio duration found")
+        # 1. 尝试从字幕获取时长
+        if project.decompressionData.subtitleSegments:
+            last_subtitle = project.decompressionData.subtitleSegments[-1]
+            target_duration = last_subtitle.endTime
+            logger.info(f"Using subtitle duration for video selection: {target_duration}s")
+
+        # 2. 如果还是没有，使用默认时长
+        if target_duration <= 0:
+            target_duration = 60.0  # 默认60秒
+            logger.warning(f"Using default duration for video selection: {target_duration}s")
+
+    # 最终确保有一个合理的时长
+    if target_duration <= 0:
+        raise HTTPException(status_code=400, detail="Cannot determine target duration. Please upload audio or subtitle with timing information.")
 
     global_settings = storage.load_global_settings()
     video_dir = Path(global_settings.decompressionVideoPath) if global_settings.decompressionVideoPath else Path(settings.decompression_video_path)
@@ -245,10 +264,42 @@ async def generate_images(project_id: str, request: GenerateDecompressionImagesR
     if not project.decompressionData.selectedStyle:
         raise HTTPException(status_code=400, detail="No style selected")
 
+    # 检查是否已有正在生成的图片，如果有则重置为 failed
+    if project.decompressionData.imageClips:
+        reset_count = 0
+        for clip in project.decompressionData.imageClips:
+            if clip.status == GenerationStatus.GENERATING:
+                clip.status = GenerationStatus.FAILED
+                reset_count += 1
+        if reset_count > 0:
+            logger.warning(f"Reset {reset_count} stuck generating images to failed state")
+            storage.save_project(project)
+
+    # 重置取消标志
+    image_generation_cancel_flags[project_id] = False
+    if project.decompressionData:
+        project.decompressionData.imageGenerationCancelled = False
+        storage.save_project(project)
+
     target_duration = project.decompressionData.totalAudioDuration
+
+    # 如果音频时长为0，尝试从其他来源获取
+    if target_duration <= 0:
+        # 1. 尝试从字幕获取时长
+        if project.decompressionData.subtitleSegments:
+            last_subtitle = project.decompressionData.subtitleSegments[-1]
+            target_duration = last_subtitle.endTime
+            logger.info(f"Using subtitle duration for image generation: {target_duration}s")
+
+        # 2. 如果还是没有，使用默认时长
+        if target_duration <= 0:
+            target_duration = 60.0  # 默认60秒
+            logger.warning(f"Using default duration for image generation: {target_duration}s")
+
     image_count = math.ceil(target_duration / 15) if target_duration > 0 else 0
     if image_count <= 0:
-        raise HTTPException(status_code=400, detail="Invalid image count")
+        image_count = 4  # 至少生成4张图片
+        logger.warning(f"Using default image count: {image_count}")
 
     scanner = get_style_scanner()
     prompts = scanner.select_random_prompts(project.decompressionData.selectedStyle, image_count)
@@ -286,6 +337,39 @@ async def generate_images(project_id: str, request: GenerateDecompressionImagesR
     return {"success": True, "images": image_clips}
 
 
+@router.post("/projects/{project_id}/cancel-image-generation")
+async def cancel_image_generation(project_id: str):
+    """取消图片生成"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.type != ProjectType.DECOMPRESSION_VIDEO:
+        raise HTTPException(status_code=400, detail="Not a decompression video project")
+    if not project.decompressionData:
+        raise HTTPException(status_code=400, detail="Project data not initialized")
+
+    # 设置取消标志
+    image_generation_cancel_flags[project_id] = True
+    project.decompressionData.imageGenerationCancelled = True
+
+    # 将正在生成的图片状态改为已取消
+    cancelled_count = 0
+    for clip in project.decompressionData.imageClips:
+        if clip.status == GenerationStatus.GENERATING:
+            clip.status = GenerationStatus.CANCELLED
+            cancelled_count += 1
+
+    storage.save_project(project)
+
+    logger.info(f"Image generation cancelled for project {project_id}, {cancelled_count} clips marked as cancelled")
+
+    return {
+        "success": True,
+        "message": "Image generation cancelled",
+        "cancelledCount": cancelled_count
+    }
+
+
 async def _generate_images_task(project_id: str, force_regenerate: bool):
     """后台生成图片任务"""
     project = storage.load_project(project_id)
@@ -299,6 +383,13 @@ async def _generate_images_task(project_id: str, force_regenerate: bool):
     image_dir.mkdir(exist_ok=True)
 
     for clip in project.decompressionData.imageClips:
+        # 检查是否被取消
+        if image_generation_cancel_flags.get(project_id, False):
+            logger.info(f"Image generation cancelled for project {project_id}")
+            clip.status = GenerationStatus.CANCELLED
+            storage.save_project(project)
+            break
+
         if clip.status == GenerationStatus.COMPLETED and not force_regenerate:
             continue
 
@@ -315,6 +406,9 @@ async def _generate_images_task(project_id: str, force_regenerate: bool):
                 seed=seed
             )
 
+            if not img_data:
+                raise Exception("No image data returned from ComfyUI")
+
             with open(image_path, 'wb') as f:
                 f.write(img_data)
 
@@ -322,10 +416,14 @@ async def _generate_images_task(project_id: str, force_regenerate: bool):
             clip.status = GenerationStatus.COMPLETED
 
         except Exception as e:
-            logger.error(f"Failed to generate image for clip {clip.id}: {e}")
+            logger.error(f"Failed to generate image for clip {clip.id}: {e}", exc_info=True)
             clip.status = GenerationStatus.FAILED
 
         storage.save_project(project)
+
+    # 清理取消标志
+    if project_id in image_generation_cancel_flags:
+        del image_generation_cancel_flags[project_id]
 
 
 @router.post("/projects/{project_id}/export-jianying")
@@ -420,6 +518,31 @@ def parse_lrc_time(time_str: str) -> float:
         seconds = int(match.group(2))
         hundredths = int(match.group(3))
         return minutes * 60 + seconds + hundredths / 100.0
+    return 0.0
+
+
+def get_audio_duration(audio_path: Path) -> float:
+    """获取音频文件时长（支持多种格式）"""
+    try:
+        # 先尝试用 pymediainfo 获取（支持多种格式）
+        media_info = MediaInfo.parse(str(audio_path))
+        for track in media_info.tracks:
+            if track.track_type == 'Audio':
+                if track.duration:
+                    return float(track.duration) / 1000.0  # 毫秒转秒
+    except Exception as e:
+        logger.warning(f"Failed to get duration with pymediainfo: {e}")
+
+    # 如果 pymediainfo 失败，尝试用 wave（仅支持 wav）
+    try:
+        if audio_path.suffix.lower() == '.wav':
+            with wave.open(str(audio_path), 'rb') as wav_file:
+                frames = wav_file.getnframes()
+                rate = wav_file.getframerate()
+                return frames / float(rate)
+    except Exception as e:
+        logger.warning(f"Failed to get duration with wave: {e}")
+
     return 0.0
 
 
@@ -602,17 +725,20 @@ async def upload_audio(project_id: str, file: UploadFile = File(...)):
     with open(audio_path, 'wb') as f:
         f.write(content)
 
-    # 尝试获取音频时长
-    duration = 0.0
-    try:
-        if file_ext in ['.wav']:
-            with wave.open(str(audio_path), 'rb') as wav_file:
-                frames = wav_file.getnframes()
-                rate = wav_file.getframerate()
-                duration = frames / float(rate)
-    except Exception as e:
-        logger.warning(f"Failed to get audio duration: {e}")
-        duration = 0.0
+    # 尝试获取音频时长（支持多种格式）
+    duration = get_audio_duration(audio_path)
+
+    # 如果无法获取时长，尝试从字幕推断
+    if duration <= 0 and project.decompressionData.subtitleSegments:
+        # 使用最后一个字幕的结束时间作为总时长
+        last_subtitle = project.decompressionData.subtitleSegments[-1]
+        duration = last_subtitle.endTime
+        logger.info(f"Using subtitle duration: {duration}s")
+
+    # 如果还是没有时长，使用默认值
+    if duration <= 0:
+        duration = 30.0  # 默认30秒
+        logger.warning(f"Using default duration: {duration}s")
 
     # 创建音频片段
     from models.schemas import AudioClip
@@ -680,17 +806,13 @@ async def upload_audios(project_id: str, files: List[UploadFile] = File(...)):
         with open(audio_path, 'wb') as f:
             f.write(content)
 
-        # 尝试获取音频时长
-        duration = 0.0
-        try:
-            if file_ext in ['.wav']:
-                with wave.open(str(audio_path), 'rb') as wav_file:
-                    frames = wav_file.getnframes()
-                    rate = wav_file.getframerate()
-                    duration = frames / float(rate)
-        except Exception as e:
-            logger.warning(f"Failed to get audio duration: {e}")
+        # 尝试获取音频时长（支持多种格式）
+        duration = get_audio_duration(audio_path)
+
+        # 如果无法获取时长，使用默认值
+        if duration <= 0:
             duration = 5.0  # 默认5秒
+            logger.warning(f"Using default duration for {file.filename}: {duration}s")
 
         # 创建音频片段
         audio_clip = AudioClip(

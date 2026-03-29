@@ -291,14 +291,14 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
     }
   };
 
-  const handleGenerateImages = async () => {
+  const handleGenerateImages = async (forceRegenerate: boolean = false) => {
     if (!id) return;
     setGeneratingImages(true);
     setProgress(0);
     setStatusText('正在生成图片...');
     setGenerateImagesError(null);
     try {
-      await decompressionApi.generateImages(id);
+      await decompressionApi.generateImages(id, forceRegenerate);
       setPolling(true);
       // Start polling for progress
       const pollInterval = setInterval(async () => {
@@ -316,22 +316,29 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
           const failed = data.imageClips.filter(
             (c) => c.status === 'failed'
           ).length;
-          const doneCount = completed + failed;
+          const cancelled = data.imageClips.filter(
+            (c) => c.status === 'cancelled'
+          ).length;
+          const doneCount = completed + failed + cancelled;
 
           if (total > 0) {
             setProgress(Math.round((doneCount / total) * 100));
-            setStatusText(`正在生成图片... (${completed}/${total})`);
+            if (cancelled > 0) {
+              setStatusText(`生成已取消 (${completed}/${total} 完成, ${cancelled} 已取消)`);
+            } else {
+              setStatusText(`正在生成图片... (${completed}/${total})`);
+            }
           }
           if (doneCount >= total && total > 0) {
             clearInterval(pollInterval);
             setPolling(false);
             setProgress(100);
-            setStatusText('完成！');
+            setStatusText(cancelled > 0 ? `生成已取消 (${completed} 完成, ${cancelled} 已取消)` : '完成！');
             setTimeout(() => {
               setGeneratingImages(false);
               setProgress(0);
               setStatusText('');
-            }, 1000);
+            }, 1500);
           }
         }
       }, 2000);
@@ -341,6 +348,23 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
       setGenerateImagesError(errorMsg);
       setGeneratingImages(false);
       setPolling(false);
+    }
+  };
+
+  const handleCancelImageGeneration = async () => {
+    if (!id) return;
+    try {
+      await decompressionApi.cancelImageGeneration(id);
+      addToast({
+        type: 'info',
+        message: '已发送取消请求，正在停止生成...',
+      });
+    } catch (error: any) {
+      console.error('Failed to cancel image generation:', error);
+      addToast({
+        type: 'error',
+        message: error.response?.data?.detail || '取消生成失败',
+      });
     }
   };
 
@@ -1152,18 +1176,32 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
                 图片生成
               </h3>
-              <button
-                onClick={handleGenerateImages}
-                disabled={
-                  generatingImages ||
-                  !hasAudio ||
-                  !data.selectedStyle ||
-                  data.totalAudioDuration <= 0
-                }
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {generatingImages ? '生成中...' : '批量生成图片'}
-              </button>
+              <div className="flex gap-3">
+                {generatingImages && (
+                  <button
+                    onClick={handleCancelImageGeneration}
+                    className="btn-danger"
+                  >
+                    取消生成
+                  </button>
+                )}
+                <button
+                  onClick={() => handleGenerateImages(data.imageClips.some(c => c.status === 'completed' || c.status === 'failed'))}
+                  disabled={
+                    generatingImages ||
+                    !hasAudio ||
+                    !data.selectedStyle ||
+                    data.totalAudioDuration <= 0
+                  }
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingImages
+                    ? '生成中...'
+                    : data.imageClips.some(c => c.status === 'completed' || c.status === 'failed')
+                    ? '重新生成'
+                    : '批量生成图片'}
+                </button>
+              </div>
             </div>
 
             {/* 动效设置 */}
@@ -1291,6 +1329,8 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
                             ? '生成中...'
                             : clip.status === 'failed'
                             ? '失败'
+                            : clip.status === 'cancelled'
+                            ? '已取消'
                             : '待生成'}
                         </span>
                       </div>

@@ -70,7 +70,7 @@ export type PromptSnippetCategory = 'style' | 'quality' | 'lighting' | 'composit
 
 export type ProjectType = 'novel_comic' | 'decompression_video';
 
-export type GenerationStatus = 'pending' | 'generating' | 'completed' | 'failed';
+export type GenerationStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'cancelled';
 
 export interface SubtitleSegment {
   id: string;
@@ -563,6 +563,7 @@ export const decompressionApi = {
     });
   },
   deleteUploadedAudios: (projectId: string) => api.delete(`/decompression/projects/${projectId}/audios`),
+  cancelImageGeneration: (projectId: string) => api.post(`/decompression/projects/${projectId}/cancel-image-generation`, {}),
 };
 
 export default api;

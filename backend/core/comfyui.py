@@ -1,4 +1,5 @@
 import aiohttp
+from aiohttp import ClientTimeout
 import asyncio
 from typing import Optional, Dict, Any, List
 from copy import deepcopy
@@ -53,10 +54,12 @@ class ComfyUIClient:
     async def _get_image(self, filename: str, subfolder: str = "", type: str = "output") -> Optional[bytes]:
         url = f"{self.api_url}/view"
         params = {"filename": filename, "subfolder": subfolder, "type": type}
+        timeout = ClientTimeout(total=300, connect=60)
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=30) as resp:
+            async with session.get(url, params=params, timeout=timeout) as resp:
                 if resp.status == 200:
                     return await resp.read()
+                logger.error(f"Failed to get image {filename}: status {resp.status}")
                 return None
 
     def _apply_workflow_mappings(
@@ -69,21 +72,29 @@ class ComfyUIClient:
         height: int = 1024,
         steps: int = 30,
         cfg: float = 7.0,
-        sampler_name: str = "dpmpp_2m_sde_karras",
+        sampler_name: Optional[str] = None,
         seed: int = 0,
         batch_size: int = 1,
         params: Optional[ComfyUIWorkflowParams] = None
     ) -> Dict[str, Any]:
         workflow_copy = deepcopy(workflow)
 
+        # Track which parameters are explicitly provided
+        apply_steps = False
+        apply_cfg = False
+        apply_sampler = False
+
         # Apply workflow default parameters if available
         if params:
             width = params.width
             height = params.height
             steps = params.steps
+            apply_steps = True
             cfg = params.cfg
+            apply_cfg = True
             if params.samplerName is not None:
                 sampler_name = params.samplerName
+                apply_sampler = True
             seed = params.seed
             batch_size = params.batchSize
 
@@ -119,6 +130,21 @@ class ComfyUIClient:
             if "inputs" in node:
                 node["inputs"][mappings.batchSizeField] = batch_size
 
+        # Apply sampler-related parameters - only seed is always applied for reproducibility
+        # steps, cfg, sampler_name are only applied if explicitly configured in params
+        if mappings.samplerNodeId:
+            node = workflow_copy.get(mappings.samplerNodeId, {})
+            if "inputs" in node:
+                # Always apply seed for reproducibility/randomization
+                node["inputs"][mappings.seedField] = seed
+                # Only apply other parameters if explicitly provided
+                if apply_steps:
+                    node["inputs"][mappings.stepsField] = steps
+                if apply_cfg:
+                    node["inputs"][mappings.cfgField] = cfg
+                if apply_sampler and sampler_name is not None:
+                    node["inputs"][mappings.samplerField] = sampler_name
+
         return workflow_copy
 
     async def generate_image(
@@ -129,7 +155,7 @@ class ComfyUIClient:
         height: int = 1024,
         steps: int = 30,
         cfg: float = 7.0,
-        sampler_name: str = "dpmpp_2m_sde_karras",
+        sampler_name: Optional[str] = None,
         seed: int = 0,
         workflow_id: Optional[str] = None
     ) -> Optional[bytes]:
@@ -161,6 +187,7 @@ class ComfyUIClient:
             params=workflow.defaultParams
         )
 
+        logger.info(f"Using seed: {seed}")
         prompt_id = await self._queue_prompt(workflow_json)
         logger.info(f"Queued ComfyUI prompt: {prompt_id}")
 
@@ -175,13 +202,17 @@ class ComfyUIClient:
                 for node_id, node_output in outputs.items():
                     if "images" in node_output and node_output["images"]:
                         img_info = node_output["images"][0]
+                        logger.info(f"Downloading image: {img_info['filename']}")
                         img_data = await self._get_image(
                             img_info["filename"],
                             img_info.get("subfolder", ""),
                             img_info.get("type", "output")
                         )
                         if img_data:
+                            logger.info(f"Successfully got image data: {len(img_data)} bytes")
                             return img_data
+                        else:
+                            logger.error(f"Failed to get image data for {img_info}")
 
             await asyncio.sleep(poll_interval)
             waited += poll_interval

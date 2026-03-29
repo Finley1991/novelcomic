@@ -51,6 +51,7 @@ class GenerationStatus(str, Enum):
     GENERATING = "generating"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class SubtitleSegment(BaseModel):
@@ -120,6 +121,8 @@ class DecompressionProjectData(BaseModel):
     subtitleSegments: List[SubtitleSegment] = Field(default_factory=list)
     # 上传的音频文件（单文件或多个文件）
     uploadedAudioFiles: List[str] = Field(default_factory=list)
+    # 图片生成取消标志
+    imageGenerationCancelled: bool = False
 
 
 class PromptVariable(BaseModel):
