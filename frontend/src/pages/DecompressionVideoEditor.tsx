@@ -520,6 +520,9 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
 
   const data = getData();
 
+  // 判断是否有音频（不管是生成的还是上传的）
+  const hasAudio = data.audioClips.length > 0 || data.uploadedAudioFiles.length > 0;
+
   return (
     <div>
       {/* Wizard Steps Navigation */}
@@ -699,7 +702,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
                     }
                   }}
                 />
-                {data.audioClips.length > 0 && data.uploadedAudioFiles.length > 0 && (
+                {data.uploadedAudioFiles.length > 0 && (
                   <button
                     onClick={handleDeleteUploadedAudios}
                     className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
@@ -855,16 +858,16 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               </div>
             )}
 
-            {data.audioClips.length === 0 &&
+            {data.audioClips.length === 0 && data.uploadedAudioFiles.length === 0 &&
               data.textSegments.length > 0 && (
                 <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary">
-                  点击上方按钮生成配音
+                  点击上方按钮生成配音或上传音频文件
                 </div>
               )}
 
-            {data.textSegments.length === 0 && (
+            {data.textSegments.length === 0 && data.uploadedAudioFiles.length === 0 && (
               <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary">
-                请先完成文本拆分
+                请先完成文本拆分或上传音频文件
               </div>
             )}
           </div>
@@ -880,7 +883,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               <button
                 onClick={handleSelectVideos}
                 disabled={
-                  selectingVideos || data.audioClips.length === 0
+                  selectingVideos || !hasAudio
                 }
                 className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1153,7 +1156,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
                 onClick={handleGenerateImages}
                 disabled={
                   generatingImages ||
-                  data.textSegments.length === 0 ||
+                  !hasAudio ||
                   !data.selectedStyle ||
                   data.totalAudioDuration <= 0
                 }
