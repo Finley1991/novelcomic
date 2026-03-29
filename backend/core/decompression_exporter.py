@@ -132,7 +132,7 @@ class DecompressionJianyingExporter:
 
             # 添加音频和字幕 - 重新计算时间确保连续
             logger.info("添加音频和字幕...")
-            self._add_audio_and_subtitles(script, data.audioClips, materials_map, draft, draft_dir, trange)
+            self._add_audio_and_subtitles(script, data.audioClips, data.subtitleSegments, materials_map, draft, draft_dir, trange)
 
             # 保存草稿
             logger.info("保存草稿...")
@@ -295,10 +295,11 @@ class DecompressionJianyingExporter:
             video_seg.add_keyframe(KeyframeProperty.uniform_scale, duration_us, 1.0)
             script.add_segment(video_seg, "image_track")
 
-    def _add_audio_and_subtitles(self, script, audio_clips, materials_map, draft, draft_dir: Path, trange):
+    def _add_audio_and_subtitles(self, script, audio_clips, subtitle_segments, materials_map, draft, draft_dir: Path, trange):
         """添加音频和字幕到轨道"""
         current_start_us = 0
 
+        # 先添加所有音频片段
         for clip in audio_clips:
             clip_map = materials_map.get(clip.id, {})
 
@@ -331,17 +332,32 @@ class DecompressionJianyingExporter:
                 )
                 script.add_segment(audio_seg, "audio_track")
 
-                # 添加字幕 - 使用新青年体，字号15
-                if clip.text:
-                    from src.pyJianYingDraft.metadata import FontType
-                    text_style = draft.TextStyle(size=15.0, align=1, auto_wrapping=True)
-                    text_seg = draft.TextSegment(
-                        clip.text,
-                        trange(start=current_start_us, duration=use_duration_us),
-                        font=FontType.新青年体,
-                        style=text_style
-                    )
-                    script.add_segment(text_seg, "subtitle_track")
-
                 # 更新下一个片段的开始时间
                 current_start_us += use_duration_us
+
+        # 添加上传的字幕片段
+        if subtitle_segments and len(subtitle_segments) > 0:
+            logger.info(f"添加 {len(subtitle_segments)} 个上传的字幕片段...")
+            from src.pyJianYingDraft.metadata import FontType
+            text_style = draft.TextStyle(size=15.0, align=1, auto_wrapping=True)
+
+            for seg in subtitle_segments:
+                start_us = int(seg.startTime * 1_000_000)
+                duration_us = int((seg.endTime - seg.startTime) * 1_000_000)
+
+                if duration_us <= 0:
+                    continue
+
+                logger.info(f"字幕: {seg.text}")
+                logger.info(f"  开始时间: {start_us}us")
+                logger.info(f"  时长: {duration_us}us")
+
+                text_seg = draft.TextSegment(
+                    seg.text,
+                    trange(start=start_us, duration=duration_us),
+                    font=FontType.新青年体,
+                    style=text_style
+                )
+                script.add_segment(text_seg, "subtitle_track")
+        else:
+            logger.warning("没有上传的字幕片段，跳过字幕轨道")
