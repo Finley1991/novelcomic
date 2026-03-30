@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 from config import settings, ensure_data_dirs
-from api import projects, generation, comfyui_workflows, settings as settings_api, prompts, image_prompts, export, scenes, decompression
+from api import projects, generation, comfyui_workflows, settings as settings_api, prompts, image_prompts, export, scenes, decompression, style_prompts
 
 app = FastAPI(title="NovelComic API", version="1.0.0")
 
@@ -39,6 +39,7 @@ app.include_router(prompts.router)
 app.include_router(image_prompts.router)
 app.include_router(scenes.router)
 app.include_router(decompression.router)
+app.include_router(style_prompts.router)
 
 @app.get("/")
 async def root():
