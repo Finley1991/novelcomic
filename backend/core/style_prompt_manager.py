@@ -259,8 +259,7 @@ class StylePromptManager:
         requirement: str
     ) -> List[str]:
         """大模型仿写提示词"""
-        from core.ollama import ollama_client
-        from core.openai_client import openai_client
+        from core.llm import LLMClient
         from config import settings
 
         system_prompt = """你是一个专业的 AI 绘画提示词工程师。
@@ -280,19 +279,14 @@ class StylePromptManager:
             requirement=requirement or "无额外要求，只要类似但有变化"
         )
 
-        # 尝试使用 Ollama，失败则用 OpenAI
-        try:
-            result = await ollama_client.generate(
-                system_prompt="",
-                user_prompt=user_prompt,
-                model=settings.ollama_model
-            )
-        except Exception as e:
-            logger.warning(f"Ollama failed, trying OpenAI: {e}")
-            result = await openai_client.generate(
-                system_prompt="",
-                user_prompt=user_prompt
-            )
+        # 使用统一的 LLMClient
+        llm_client = LLMClient(settings)
+
+        # 直接调用内部的 generate 方法
+        result = await llm_client._client.generate(
+            prompt=user_prompt,
+            system_prompt=""
+        )
 
         # 解析结果，按行分割，过滤空行
         lines = [line.strip() for line in result.splitlines() if line.strip()]
