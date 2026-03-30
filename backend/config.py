@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     comfyui_concurrent_limit: int = 3
 
     ollama_api_url: str = "http://8.222.174.34:11434"
-    ollama_model: str = "llama3"
+    ollama_model: str = "qwen3.5:9b"
     ollama_timeout: int = 120
     ollama_max_retries: int = 2
     ollama_chunk_size: int = 4000
