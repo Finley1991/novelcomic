@@ -524,3 +524,48 @@ class RenderImagePromptRequest(BaseModel):
 
 class RenderImagePromptResponse(BaseModel):
     renderedPrompt: str
+
+
+# ===== Style Prompt Request/Response Schemas =====
+class StylePromptList(BaseModel):
+    styleName: str
+    fileName: str
+    prompts: List[str]
+
+
+class CreateStyleRequest(BaseModel):
+    styleName: str = Field(..., min_length=1, max_length=100)
+
+
+class RenameStyleRequest(BaseModel):
+    newStyleName: str = Field(..., min_length=1, max_length=100)
+
+
+class AddPromptRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+
+
+class UpdatePromptRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+
+
+class BatchAppendPromptsRequest(BaseModel):
+    prompts: List[str]
+
+
+class ParaphraseRequest(BaseModel):
+    originalPrompt: str = Field(..., min_length=1)
+    count: int = Field(..., ge=1, le=20)
+    requirement: str = ""
+
+
+class ParaphraseResponse(BaseModel):
+    generatedPrompts: List[str]
+
+
+class TestImageRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+
+
+class TestImageResponse(BaseModel):
+    filename: str
