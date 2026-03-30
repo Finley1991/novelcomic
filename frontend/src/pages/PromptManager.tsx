@@ -918,13 +918,13 @@ const PromptManager: React.FC = () => {
         {/* 测试生图弹窗 */}
         {showTestImageModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="card max-w-2xl w-full">
-              <div className="p-4 border-b border-light-divider dark:border-dark-divider">
+            <div className="card max-w-4xl w-full max-h-[90vh] flex flex-col">
+              <div className="p-4 border-b border-light-divider dark:border-dark-divider flex-shrink-0">
                 <h3 className="font-semibold text-lg text-light-text-primary dark:text-dark-text-primary">
                   测试生图
                 </h3>
               </div>
-              <div className="p-4">
+              <div className="p-4 overflow-y-auto flex-1">
                 <div className="mb-4">
                   <label className="input-label">提示词</label>
                   <textarea
@@ -936,13 +936,15 @@ const PromptManager: React.FC = () => {
                 {testImageUrl && (
                   <div className="mb-4">
                     <label className="input-label">生成结果</label>
-                    <img
-                      src={testImageUrl}
-                      alt="Test"
-                      className="w-full rounded-lg"
-                      onError={handleImageError}
-                      key={testImageUrl}
-                    />
+                    <div className="flex justify-center">
+                      <img
+                        src={testImageUrl}
+                        alt="Test"
+                        className="max-w-full max-h-[60vh] w-auto h-auto rounded-lg"
+                        onError={handleImageError}
+                        key={testImageUrl}
+                      />
+                    </div>
                   </div>
                 )}
                 {testImageLoading && (
@@ -951,7 +953,7 @@ const PromptManager: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="p-4 border-t border-light-divider dark:border-dark-divider flex gap-2 justify-end">
+              <div className="p-4 border-t border-light-divider dark:border-dark-divider flex gap-2 justify-end flex-shrink-0">
                 <button
                   onClick={() => setShowTestImageModal(false)}
                   className="btn-secondary"
