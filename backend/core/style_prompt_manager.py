@@ -259,8 +259,10 @@ class StylePromptManager:
         requirement: str
     ) -> List[str]:
         """大模型仿写提示词"""
-        from core.llm import LLMClient
+        from core.ollama import OllamaClient
+        from core.openai_client import OpenAIClient
         from config import settings
+        from models.schemas import LLMProvider
 
         system_prompt = """你是一个专业的 AI 绘画提示词工程师。
 请根据以下原始提示词，生成 {count} 个类似但不同的提示词。
@@ -279,10 +281,30 @@ class StylePromptManager:
             requirement=requirement or "无额外要求，只要类似但有变化"
         )
 
-        # 使用统一的 LLMClient，支持 Ollama 和 OpenAI 切换
-        llm_client = LLMClient(settings)
+        # 根据配置选择使用 Ollama 还是 OpenAI
+        provider = settings.llm.provider if hasattr(settings, 'llm') else LLMProvider.OLLAMA
 
-        result = await llm_client._client.generate(
+        logger.info(f"Using provider: {provider}, settings.ollama_model: {settings.ollama_model}")
+
+        if provider == LLMProvider.OPENAI:
+            # 使用 OpenAI
+            openai_settings = settings.llm.openai if hasattr(settings, 'llm') else None
+            client = OpenAIClient(
+                api_key=openai_settings.apiKey if openai_settings else None,
+                base_url=openai_settings.baseUrl if openai_settings else None,
+                model=openai_settings.model if openai_settings else None,
+                proxy=openai_settings.proxy if openai_settings and hasattr(openai_settings, 'proxy') else None
+            )
+        else:
+            # 使用 Ollama，直接硬编码模型名称确保正确
+            client = OllamaClient(
+                api_url=settings.ollama_api_url,
+                model="qwen3.5:9b"
+            )
+
+        logger.info(f"Client model: {client.model}")
+
+        result = await client.generate(
             prompt=user_prompt,
             system_prompt=""
         )

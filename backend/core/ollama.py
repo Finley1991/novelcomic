@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     def __init__(self, api_url: Optional[str] = None, model: Optional[str] = None):
         self.api_url = api_url or settings.ollama_api_url
-        self.model = model or settings.ollama_model
+        self.model = model or "qwen3.5:9b"
         self.chunk_size = settings.ollama_chunk_size
         self.overlap_size = 500
 

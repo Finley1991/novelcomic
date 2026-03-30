@@ -188,6 +188,7 @@ const PromptManager: React.FC = () => {
     setParaphraseCount(3);
     setParaphraseRequirement('');
     setParaphraseResults([]);
+    setSelectedParaphrased([]);
     setShowParaphraseModal(true);
   };
 
@@ -195,28 +196,44 @@ const PromptManager: React.FC = () => {
     if (!paraphraseSourcePrompt) return;
     try {
       setParaphraseLoading(true);
+      console.log('Paraphrasing:', {
+        originalPrompt: paraphraseSourcePrompt,
+        count: paraphraseCount,
+        requirement: paraphraseRequirement,
+      });
       const response = await stylePromptsApi.paraphrase({
         originalPrompt: paraphraseSourcePrompt,
         count: paraphraseCount,
         requirement: paraphraseRequirement,
       });
+      console.log('Paraphrase response:', response.data);
       setParaphraseResults(response.data.generatedPrompts);
     } catch (error) {
       console.error('Failed to paraphrase:', error);
+      alert('仿写失败: ' + (error as any)?.response?.data?.detail || (error as any)?.message);
     } finally {
       setParaphraseLoading(false);
     }
   };
 
   const appendParaphrased = async (selectedPrompts: string[]) => {
-    if (!selectedStyle || selectedPrompts.length === 0) return;
+    console.log('appendParaphrased called with:', { selectedStyle, selectedPrompts });
+    if (!selectedStyle || selectedPrompts.length === 0) {
+      console.log('No style or no prompts selected');
+      return;
+    }
     try {
+      console.log('Calling batchAppendPrompts...');
       const response = await stylePromptsApi.batchAppendPrompts(selectedStyle.styleName, selectedPrompts);
-      setSelectedStyle({ ...selectedStyle, prompts: response });
-      setStyles(styles.map(s => s.styleName === selectedStyle.styleName ? { ...s, prompts: response } : s));
+      console.log('Response:', response.data);
+      setSelectedStyle({ ...selectedStyle, prompts: response.data });
+      setStyles(styles.map(s => s.styleName === selectedStyle.styleName ? { ...s, prompts: response.data } : s));
       setShowParaphraseModal(false);
+      setParaphraseResults([]);
+      setSelectedParaphrased([]);
     } catch (error) {
       console.error('Failed to append prompts:', error);
+      alert('添加失败: ' + ((error as any)?.response?.data?.detail || (error as any)?.message));
     }
   };
 
