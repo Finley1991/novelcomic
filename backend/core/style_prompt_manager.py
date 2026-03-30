@@ -47,13 +47,43 @@ class StylePromptManager:
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
 
     def _load_mapping(self) -> Dict[str, str]:
-        """加载风格名称到文件名的映射"""
+        """加载风格名称到文件名的映射，自动扫描目录中的 txt 文件"""
         if self._mapping_file.exists():
             try:
-                return json.loads(self._mapping_file.read_text(encoding='utf-8'))
+                mapping = json.loads(self._mapping_file.read_text(encoding='utf-8'))
             except Exception as e:
                 logger.error(f"Failed to load style mapping: {e}")
-        return {}
+                mapping = {}
+        else:
+            mapping = {}
+
+        # 自动扫描目录中的 txt 文件，添加未映射的文件
+        needs_save = False
+        for txt_file in self.style_dir.glob("*.txt"):
+            if txt_file.name.startswith("_"):
+                continue
+            # 文件名（去掉 .txt）作为风格名称
+            style_name = txt_file.stem
+            if style_name not in mapping:
+                mapping[style_name] = txt_file.name
+                needs_save = True
+                logger.info(f"Auto-mapped style: {style_name} -> {txt_file.name}")
+
+        # 清理不存在的文件的映射
+        to_remove = []
+        for style_name, file_name in mapping.items():
+            if not (self.style_dir / file_name).exists():
+                to_remove.append(style_name)
+        for style_name in to_remove:
+            del mapping[style_name]
+            needs_save = True
+            logger.info(f"Removed missing style: {style_name}")
+
+        if needs_save:
+            self._style_mapping = mapping
+            self._save_mapping()
+
+        return mapping
 
     def _save_mapping(self):
         """保存映射"""
