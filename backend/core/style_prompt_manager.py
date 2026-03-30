@@ -259,7 +259,7 @@ class StylePromptManager:
         requirement: str
     ) -> List[str]:
         """大模型仿写提示词"""
-        from core.ollama import OllamaClient
+        from core.llm import LLMClient
         from config import settings
 
         system_prompt = """你是一个专业的 AI 绘画提示词工程师。
@@ -279,13 +279,10 @@ class StylePromptManager:
             requirement=requirement or "无额外要求，只要类似但有变化"
         )
 
-        # 直接使用 OllamaClient，明确指定模型
-        ollama_client = OllamaClient(
-            api_url=settings.ollama_api_url,
-            model=settings.ollama_model
-        )
+        # 使用统一的 LLMClient，支持 Ollama 和 OpenAI 切换
+        llm_client = LLMClient(settings)
 
-        result = await ollama_client.generate(
+        result = await llm_client._client.generate(
             prompt=user_prompt,
             system_prompt=""
         )
