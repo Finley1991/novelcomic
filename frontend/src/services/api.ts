@@ -167,6 +167,31 @@ export interface RenderImagePromptResponse {
   renderedPrompt: string;
 }
 
+// ===== Style Prompt Types =====
+export interface StylePromptList {
+  styleName: string;
+  fileName: string;
+  prompts: string[];
+}
+
+export interface ParaphraseRequest {
+  originalPrompt: string;
+  count: number;
+  requirement: string;
+}
+
+export interface ParaphraseResponse {
+  generatedPrompts: string[];
+}
+
+export interface TestImageRequest {
+  prompt: string;
+}
+
+export interface TestImageResponse {
+  filename: string;
+}
+
 export interface PromptVariable {
   name: string;
   description: string;
@@ -524,6 +549,40 @@ export const imagePromptApi = {
 };
 
 // 解压视频 API
+// ===== Style Prompt API =====
+export const stylePromptsApi = {
+  // Style management
+  listStyles: () => api.get<StylePromptList[]>('/style-prompts/styles'),
+  createStyle: (styleName: string) =>
+    api.post<StylePromptList>('/style-prompts/styles', { styleName }),
+  renameStyle: (oldName: string, newName: string) =>
+    api.put<StylePromptList>(`/style-prompts/styles/${encodeURIComponent(oldName)}`, { newStyleName: newName }),
+  deleteStyle: (styleName: string) =>
+    api.delete(`/style-prompts/styles/${encodeURIComponent(styleName)}`),
+
+  // Prompt management
+  getPrompts: (styleName: string) =>
+    api.get<string[]>(`/style-prompts/styles/${encodeURIComponent(styleName)}/prompts`),
+  addPrompt: (styleName: string, prompt: string) =>
+    api.post<string[]>(`/style-prompts/styles/${encodeURIComponent(styleName)}/prompts`, { prompt }),
+  updatePrompt: (styleName: string, index: number, prompt: string) =>
+    api.put<string[]>(`/style-prompts/styles/${encodeURIComponent(styleName)}/prompts/${index}`, { prompt }),
+  deletePrompt: (styleName: string, index: number) =>
+    api.delete<string[]>(`/style-prompts/styles/${encodeURIComponent(styleName)}/prompts/${index}`),
+  batchAppendPrompts: (styleName: string, prompts: string[]) =>
+    api.post<string[]>(`/style-prompts/styles/${encodeURIComponent(styleName)}/prompts/batch`, { prompts }),
+
+  // Paraphrase
+  paraphrase: (data: ParaphraseRequest) =>
+    api.post<ParaphraseResponse>('/style-prompts/paraphrase', data),
+
+  // Test image
+  testImage: (prompt: string) =>
+    api.post<TestImageResponse>('/style-prompts/test-image', { prompt }),
+  getTestImageUrl: (filename: string) =>
+    `/api/style-prompts/test-image/${encodeURIComponent(filename)}`,
+};
+
 export const decompressionApi = {
   listVideos: () => api.get<{ filePath: string; fileName: string; duration: number }[]>('/decompression/videos'),
   scanVideos: () => api.post<{ filePath: string; fileName: string; duration: number }[]>('/decompression/videos/scan'),
