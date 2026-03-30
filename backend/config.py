@@ -54,3 +54,4 @@ settings = Settings()
 def ensure_data_dirs():
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "projects").mkdir(exist_ok=True)
+    (settings.data_dir / "tmp").mkdir(exist_ok=True)

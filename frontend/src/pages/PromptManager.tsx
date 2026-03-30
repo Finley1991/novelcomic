@@ -230,13 +230,22 @@ const PromptManager: React.FC = () => {
     if (!testImagePrompt) return;
     try {
       setTestImageLoading(true);
+      setTestImageUrl(null);
       const response = await stylePromptsApi.testImage(testImagePrompt);
-      setTestImageUrl(stylePromptsApi.getTestImageUrl(response.data.filename));
+      const url = stylePromptsApi.getTestImageUrl(response.data.filename);
+      console.log('Test image URL:', url);
+      setTestImageUrl(url);
     } catch (error) {
       console.error('Failed to generate test image:', error);
+      alert('生成图片失败: ' + (error as any)?.response?.data?.detail || (error as any)?.message);
     } finally {
       setTestImageLoading(false);
     }
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.error('Image failed to load:', e);
+    alert('图片加载失败，请检查后端日志');
   };
 
   const handleSelectTemplate = (template: PromptTemplate) => {
@@ -931,6 +940,8 @@ const PromptManager: React.FC = () => {
                       src={testImageUrl}
                       alt="Test"
                       className="w-full rounded-lg"
+                      onError={handleImageError}
+                      key={testImageUrl}
                     />
                   </div>
                 )}
