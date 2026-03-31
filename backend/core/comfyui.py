@@ -95,7 +95,9 @@ class ComfyUIClient:
             if params.samplerName is not None:
                 sampler_name = params.samplerName
                 apply_sampler = True
-            seed = params.seed
+            # Only use params.seed if it's not 0 (0 means random)
+            if params.seed != 0:
+                seed = params.seed
             batch_size = params.batchSize
 
             # Apply prompt prefix/suffix
