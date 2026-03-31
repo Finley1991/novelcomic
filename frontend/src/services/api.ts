@@ -192,6 +192,68 @@ export interface TestImageResponse {
   filename: string;
 }
 
+// ===== Draft Adjustment API =====
+export interface TextStyleConfig {
+  fontSize: number;
+  fontFamily: string;
+  fontColor: string;
+  strokeColor?: string;
+  strokeWidth: number;
+  alpha: number;
+  positionX: number;
+  positionY: number;
+  align: number;
+}
+
+export interface WatermarkStyleConfig extends TextStyleConfig {
+  startPositionX: number;
+  startPositionY: number;
+  endPositionX: number;
+  endPositionY: number;
+}
+
+export interface DraftAdjustmentConfig {
+  coverImagePath?: string;
+  coverDuration: number;
+  coverTitleEnabled: boolean;
+  coverTitle: string;
+  coverTitleStyle: TextStyleConfig;
+  textEnabled: boolean;
+  textContent: string;
+  textStyle: TextStyleConfig;
+  watermarkEnabled: boolean;
+  watermarkText: string;
+  watermarkStyle: WatermarkStyleConfig;
+  bgMusicEnabled: boolean;
+  bgMusicPath?: string;
+  bgMusicVolume: number;
+  bgMusicFadeInDuration: number;
+  bgMusicFadeOutDuration: number;
+}
+
+export interface LoadDraftRequest {
+  draftPath: string;
+}
+
+export interface LoadDraftResponse {
+  success: boolean;
+  draftName: string;
+  duration: number;
+  trackCount: number;
+  error?: string;
+}
+
+export interface ApplyDraftAdjustmentRequest {
+  draftPath: string;
+  config: DraftAdjustmentConfig;
+}
+
+export interface ApplyDraftAdjustmentResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
 export interface PromptVariable {
   name: string;
   description: string;
@@ -623,6 +685,30 @@ export const decompressionApi = {
   },
   deleteUploadedAudios: (projectId: string) => api.delete(`/decompression/projects/${projectId}/audios`),
   cancelImageGeneration: (projectId: string) => api.post(`/decompression/projects/${projectId}/cancel-image-generation`, {}),
+};
+
+export const draftAdjustApi = {
+  loadDraft: (data: LoadDraftRequest) =>
+    api.post<LoadDraftResponse>('/draft-adjust/load', data),
+
+  uploadCover: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ path: string }>('/draft-adjust/upload-cover', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  uploadMusic: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ path: string }>('/draft-adjust/upload-music', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  apply: (data: ApplyDraftAdjustmentRequest) =>
+    api.post<ApplyDraftAdjustmentResponse>('/draft-adjust/apply', data),
 };
 
 export default api;
