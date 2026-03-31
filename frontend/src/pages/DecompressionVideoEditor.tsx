@@ -9,6 +9,7 @@ import {
 } from '../services/api';
 import { WizardSteps, type WizardStep } from '../components/project/WizardSteps';
 import { useToast } from '../hooks/useToast';
+import { DraftAdjustmentModal } from '../components/DraftAdjustmentModal';
 
 // 解压视频编辑器的向导步骤定义
 const decompressionWizardSteps: Omit<WizardStep, 'status'>[] = [
@@ -33,6 +34,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
   const [project, setProject] = useState<Project>(initialProject);
   const [currentStep, setCurrentStep] = useState(0);
   const [polling, setPolling] = useState(false);
+  const [showDraftAdjustModal, setShowDraftAdjustModal] = useState(false);
 
   // 视频素材和风格相关状态
   const [availableVideos, setAvailableVideos] = useState<
@@ -1362,21 +1364,29 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">
                 导出剪映草稿
               </h3>
-              <button
-                onClick={handleExportJianying}
-                disabled={exportingJianying}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {exportingJianying ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin">⟳</span> 导出中...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span>✂️</span> 导出到剪映
-                  </span>
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDraftAdjustModal(true)}
+                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  草稿调整
+                </button>
+                <button
+                  onClick={handleExportJianying}
+                  disabled={exportingJianying}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {exportingJianying ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin">⟳</span> 导出中...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span>✂️</span> 导出到剪映
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
             {exportResult && (
@@ -1456,6 +1466,12 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
           </div>
         )}
       </div>
+
+      <DraftAdjustmentModal
+        isOpen={showDraftAdjustModal}
+        onClose={() => setShowDraftAdjustModal(false)}
+        project={project}
+      />
     </div>
   );
 };

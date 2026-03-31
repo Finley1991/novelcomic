@@ -569,3 +569,90 @@ class TestImageRequest(BaseModel):
 
 class TestImageResponse(BaseModel):
     filename: str
+
+
+# ===== Draft Adjustment Schemas =====
+class TextStyleConfig(BaseModel):
+    """文本样式配置"""
+    fontSize: float = 24.0
+    fontFamily: str = "新青年体"
+    fontColor: str = "#ffd9e8"
+    strokeColor: Optional[str] = "#ff619d"
+    strokeWidth: float = 0.08
+    alpha: float = 1.0
+    positionX: float = 0.0
+    positionY: float = 0.87
+    align: int = 1  # 0=左, 1=中, 2=右
+
+
+class WatermarkStyleConfig(TextStyleConfig):
+    """水印样式配置（继承自文本样式）"""
+    fontSize: float = 15.0
+    fontColor: str = "#ffffff"
+    strokeColor: Optional[str] = None
+    strokeWidth: float = 0.0
+    alpha: float = 0.2078
+    # 关键帧起始位置
+    startPositionX: float = -0.552795
+    startPositionY: float = 0.874126
+    # 关键帧结束位置
+    endPositionX: float = 0.596435
+    endPositionY: float = -0.930708
+
+
+class DraftAdjustmentConfig(BaseModel):
+    """草稿调整配置"""
+    # 封面
+    coverImagePath: Optional[str] = None
+    coverDuration: float = 3.0  # 秒
+
+    # 封面标题
+    coverTitleEnabled: bool = False
+    coverTitle: str = ""
+    coverTitleStyle: TextStyleConfig = Field(default_factory=TextStyleConfig)
+
+    # 文本
+    textEnabled: bool = False
+    textContent: str = ""
+    textStyle: TextStyleConfig = Field(default_factory=lambda: TextStyleConfig(
+        fontSize=15.0,
+        fontColor="#ffffff",
+        strokeColor=None,
+        strokeWidth=0.0,
+        positionY=0.0
+    ))
+
+    # 水印
+    watermarkEnabled: bool = False
+    watermarkText: str = ""
+    watermarkStyle: WatermarkStyleConfig = Field(default_factory=WatermarkStyleConfig)
+
+    # 配乐
+    bgMusicEnabled: bool = False
+    bgMusicPath: Optional[str] = None
+    bgMusicVolume: float = 0.04425  # -27dB
+    bgMusicFadeInDuration: float = 1.0  # 秒
+    bgMusicFadeOutDuration: float = 1.0  # 秒
+
+
+class LoadDraftRequest(BaseModel):
+    draftPath: str
+
+
+class LoadDraftResponse(BaseModel):
+    success: bool
+    draftName: str
+    duration: float  # 秒
+    trackCount: int
+    error: Optional[str] = None
+
+
+class ApplyDraftAdjustmentRequest(BaseModel):
+    draftPath: str
+    config: DraftAdjustmentConfig
+
+
+class ApplyDraftAdjustmentResponse(BaseModel):
+    success: bool
+    message: str
+    error: Optional[str] = None
