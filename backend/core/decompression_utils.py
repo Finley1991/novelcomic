@@ -94,7 +94,7 @@ class VideoScanner:
         return videos
 
     def select_videos_for_duration(self, video_dir: Path, target_duration: float) -> List[Dict]:
-        """选择视频直到达到目标时长"""
+        """选择视频直到达到目标时长（添加缓冲时间确保足够）"""
         videos = self.scan_videos(video_dir)
         if not videos:
             return []
@@ -104,7 +104,11 @@ class VideoScanner:
         used_indices = set()
         video_list = videos.copy()
 
-        while current_duration < target_duration:
+        # 添加5秒缓冲时间，确保视频时长足够覆盖音频
+        buffer_duration = 5.0
+        target_with_buffer = target_duration + buffer_duration
+
+        while current_duration < target_with_buffer:
             available = [v for i, v in enumerate(video_list) if i not in used_indices]
 
             if not available:

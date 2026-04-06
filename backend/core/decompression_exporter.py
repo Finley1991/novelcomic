@@ -339,7 +339,7 @@ class DecompressionJianyingExporter:
         if subtitle_segments and len(subtitle_segments) > 0:
             logger.info(f"添加 {len(subtitle_segments)} 个上传的字幕片段...")
             from src.pyJianYingDraft.metadata import FontType
-            text_style = draft.TextStyle(size=15.0, align=1, auto_wrapping=True)
+            text_style = draft.TextStyle(size=13.0, align=1, auto_wrapping=True)
 
             for seg in subtitle_segments:
                 start_us = int(seg.startTime * 1_000_000)
