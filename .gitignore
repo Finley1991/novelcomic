@@ -36,9 +36,11 @@ dist/
 .env.local
 
 # Data
-data/
+data/projects/
+data/tmp/
 *.json
 !*.example.json
+!data/style_prompts/_mapping.json
 
 # IDE
 .vscode/
