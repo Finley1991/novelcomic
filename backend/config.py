@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     jianying_canvas_ratio: str = "16:9"
     jianying_draft_path: str = ""
 
+    capcut_mate_path: str = ""
+
     decompression_video_path: str = "/Users/wyf-mac/Documents/小说推文/视频"
     style_prompts_path: str = str(BASE_DIR / "data" / "style_prompts")
 

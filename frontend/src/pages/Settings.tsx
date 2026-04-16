@@ -89,7 +89,7 @@ const Settings: React.FC = () => {
     },
     ollama: { apiUrl: '', model: 'llama3', timeout: 120, maxRetries: 2, chunkSize: 4000 },
     tts: { azureKey: '', azureRegion: '', voice: 'zh-CN-XiaoxiaoNeural', rate: 1.0, pitch: 0, timeout: 60, maxRetries: 3, concurrentLimit: 5 },
-    jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9', draftPath: '' },
+    jianying: { canvasWidth: 1920, canvasHeight: 1080, canvasRatio: '16:9', draftPath: '', capcutMatePath: '' },
     decompressionVideoPath: '',
     stylePromptsPath: '',
   });
@@ -725,6 +725,19 @@ const Settings: React.FC = () => {
               />
               <p className="text-xs text-gray-500 mt-1">
                 剪映草稿文件夹路径，导出的草稿将保存到此处
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Capcut Mate 路径</label>
+              <input
+                type="text"
+                value={settings.jianying?.capcutMatePath || ''}
+                onChange={(e) => setSettings({...settings, jianying: {...settings.jianying, capcutMatePath: e.target.value}})}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="/Users/xxx/Documents/code/capcut-mate/src"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                capcut-mate 项目的 src 目录路径，用于导出剪映草稿
               </p>
             </div>
             <div className="grid grid-cols-2 gap-4">

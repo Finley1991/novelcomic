@@ -9,12 +9,9 @@ import sys
 
 from config import settings
 from models.schemas import Project, Storyboard
+from core.capcut_mate import init_capcut_mate
 
 logger = logging.getLogger(__name__)
-
-# 添加 pyJianYingDraft 库的路径
-CAPCUT_MATE_PATH = Path("/Users/wyf-mac/Documents/code/claudecode/capcut-mate/src")
-sys.path.insert(0, str(CAPCUT_MATE_PATH.parent))
 
 
 class JianyingExporter:
@@ -49,6 +46,10 @@ class JianyingExporter:
         logger.info(f"开始导出项目 {project.id} 到剪映草稿 {draft_id}")
 
         try:
+            # 初始化 capcut-mate 路径
+            if not init_capcut_mate():
+                raise ValueError("capcut-mate path not configured or invalid. Please set capcut_mate_path in settings.")
+
             # 1. 使用 pyJianYingDraft 创建草稿
             import src.pyJianYingDraft as draft
             from src.pyJianYingDraft.draft_folder import DraftFolder

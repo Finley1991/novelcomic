@@ -357,6 +357,7 @@ class JianyingSettings(BaseModel):
     canvasHeight: int = 1080
     canvasRatio: str = "16:9"
     draftPath: str = ""
+    capcutMatePath: str = ""
 
 
 class GlobalSettings(BaseModel):

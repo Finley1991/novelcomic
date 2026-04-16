@@ -19,12 +19,9 @@ import sys
 
 from config import settings
 from models.schemas import Project
+from core.capcut_mate import init_capcut_mate, get_capcut_mate_path
 
 logger = logging.getLogger(__name__)
-
-# 添加 pyJianYingDraft 库的路径
-CAPCUT_MATE_PATH = Path("/Users/wyf-mac/Documents/code/claudecode/capcut-mate/src")
-sys.path.insert(0, str(CAPCUT_MATE_PATH.parent))
 
 # ==================== Flag: pyJianYingDraft 多轨道支持 ====================
 # 调研结果：pyJianYingDraft 库确实支持多视频轨道
@@ -77,6 +74,10 @@ class DecompressionJianyingExporter:
         logger.info(f"草稿目录: {draft_dir}")
 
         try:
+            # 初始化 capcut-mate 路径
+            if not init_capcut_mate():
+                raise ValueError("capcut-mate path not configured or invalid. Please set capcut_mate_path in settings.")
+
             # 1. 使用 pyJianYingDraft 创建草稿
             import src.pyJianYingDraft as draft
             from src.pyJianYingDraft.draft_folder import DraftFolder

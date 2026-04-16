@@ -20,6 +20,7 @@ from models.schemas import (
 )
 from core.storage import storage
 from core.decompression_utils import VideoScanner, StylePromptScanner
+from core.capcut_mate import is_capcut_mate_available, get_capcut_mate_path
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/decompression", tags=["decompression"])
@@ -463,9 +464,12 @@ async def export_jianying(project_id: str, request: ExportDecompressionJianyingR
         raise HTTPException(status_code=500, detail=f"Template directory not found: {template_dir}")
 
     # 检查 capcut-mate 库
-    CAPCUT_MATE_PATH = Path("/Users/wyf-mac/Documents/code/claudecode/capcut-mate/src")
-    if not CAPCUT_MATE_PATH.exists():
-        raise HTTPException(status_code=500, detail=f"capcut-mate library not found at: {CAPCUT_MATE_PATH}")
+    if not is_capcut_mate_available():
+        capcut_path = get_capcut_mate_path()
+        if capcut_path:
+            raise HTTPException(status_code=500, detail=f"capcut-mate library not found at: {capcut_path}. Please check capcut_mate_path in settings.")
+        else:
+            raise HTTPException(status_code=500, detail="capcut_mate_path not configured. Please set it in settings.")
 
     try:
         exporter = DecompressionJianyingExporter(template_dir, draft_base_path)

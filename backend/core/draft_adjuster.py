@@ -15,10 +15,6 @@ from models.schemas import (
 
 logger = logging.getLogger(__name__)
 
-# 添加 pyJianYingDraft 库的路径
-CAPCUT_MATE_PATH = Path("/Users/wyf-mac/Documents/code/claudecode/capcut-mate/src")
-sys.path.insert(0, str(CAPCUT_MATE_PATH.parent))
-
 
 class DraftAdjuster:
     """剪映草稿调整器"""
