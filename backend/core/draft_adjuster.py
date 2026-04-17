@@ -697,8 +697,8 @@ class DraftAdjuster:
 
             seg_id = str(uuid.uuid4()).upper()
 
-            # 使用固定的配乐音量（-27dB）
-            bgm_volume = 0.032125454396009445
+            # 使用固定的配乐音量（-30dB）
+            bgm_volume = 0.03162277660168379
 
             segment = {
                 "clip": {
@@ -760,6 +760,7 @@ class DraftAdjuster:
         """应用所有调整"""
         total_duration_us = self._get_total_duration_us()
         logger.info(f"Applying adjustments, total duration: {total_duration_us / 1_000_000:.2f}s")
+        logger.info(f"Config: bgMusicEnabled={config.bgMusicEnabled}, bgMusicPath={config.bgMusicPath}")
 
         # 封面
         if config.coverImagePath:
