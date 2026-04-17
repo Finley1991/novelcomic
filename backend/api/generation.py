@@ -1,18 +1,22 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
-from typing import Dict, Any, Optional, Set
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, UploadFile, File
+from typing import Dict, Any, Optional, Set, List
 import asyncio
 from pathlib import Path
 from PIL import Image
 from io import BytesIO
 import uuid
 import logging
+import wave
+import re
+from pymediainfo import MediaInfo
 
 logger = logging.getLogger(__name__)
 
 from models.schemas import (
     Project, GenerateImagesRequest, GenerateAudiosRequest,
     GenerationStatus, GenerationStatusResponse,
-    SplitStoryboardRequest, GeneratePromptsRequest, GeneratePromptsResponse
+    SplitStoryboardRequest, GeneratePromptsRequest, GeneratePromptsResponse,
+    SubtitleSegment, TextSegment, AudioClip, ProjectType
 )
 from core.storage import storage
 from core.llm import LLMClient
@@ -471,3 +475,326 @@ async def get_generation_status(project_id: str):
             "failed": failed_audio
         }
     )
+
+
+def parse_srt_time(time_str: str) -> float:
+    """解析 SRT 时间格式为秒"""
+    match = re.match(r'(\d+):(\d+):(\d+),(\d+)', time_str)
+    if match:
+        hours = int(match.group(1))
+        minutes = int(match.group(2))
+        seconds = int(match.group(3))
+        milliseconds = int(match.group(4))
+        return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000.0
+    return 0.0
+
+
+def parse_vtt_time(time_str: str) -> float:
+    """解析 VTT 时间格式为秒"""
+    time_str = time_str.strip()
+    if '.' not in time_str:
+        time_str = time_str + '.000'
+
+    parts = time_str.split(':')
+    if len(parts) == 3:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = float(parts[2])
+        return hours * 3600 + minutes * 60 + seconds
+    elif len(parts) == 2:
+        minutes = int(parts[0])
+        seconds = float(parts[1])
+        return minutes * 60 + seconds
+    return 0.0
+
+
+def parse_lrc_time(time_str: str) -> float:
+    """解析 LRC 时间格式为秒"""
+    match = re.match(r'(\d+):(\d+)\.(\d+)', time_str)
+    if match:
+        minutes = int(match.group(1))
+        seconds = int(match.group(2))
+        hundredths = int(match.group(3))
+        return minutes * 60 + seconds + hundredths / 100.0
+    return 0.0
+
+
+def get_audio_duration(audio_path: Path) -> float:
+    """获取音频文件时长（支持多种格式）"""
+    try:
+        media_info = MediaInfo.parse(str(audio_path))
+        for track in media_info.tracks:
+            if track.track_type == 'Audio':
+                if track.duration:
+                    return float(track.duration) / 1000.0
+    except Exception as e:
+        logger.warning(f"Failed to get duration with pymediainfo: {e}")
+
+    try:
+        if audio_path.suffix.lower() == '.wav':
+            with wave.open(str(audio_path), 'rb') as wav_file:
+                frames = wav_file.getnframes()
+                rate = wav_file.getframerate()
+                return frames / float(rate)
+    except Exception as e:
+        logger.warning(f"Failed to get duration with wave: {e}")
+
+    return 0.0
+
+
+@router.post("/projects/{project_id}/upload-subtitle")
+async def upload_subtitle(project_id: str, file: UploadFile = File(...)):
+    """上传字幕文件 (支持 SRT, VTT, LRC, TXT 格式) - AI漫画项目"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.type != ProjectType.NOVEL_COMIC:
+        raise HTTPException(status_code=400, detail="Not a novel comic project")
+
+    proj_dir = Path(settings.data_dir) / "projects" / project_id
+    subtitle_dir = proj_dir / "subtitles"
+    subtitle_dir.mkdir(exist_ok=True)
+
+    file_ext = Path(file.filename).suffix.lower() if file.filename else '.txt'
+    subtitle_filename = f"subtitle_{uuid.uuid4()}{file_ext}"
+    subtitle_path = subtitle_dir / subtitle_filename
+
+    content = await file.read()
+    with open(subtitle_path, 'wb') as f:
+        f.write(content)
+
+    subtitle_segments = []
+    text_segments = []
+
+    try:
+        content_str = content.decode('utf-8')
+    except UnicodeDecodeError:
+        try:
+            content_str = content.decode('gbk')
+        except:
+            content_str = content.decode('utf-8', errors='ignore')
+
+    if file_ext == '.srt':
+        blocks = re.split(r'\n\s*\n', content_str.strip())
+        for i, block in enumerate(blocks):
+            lines = block.strip().split('\n')
+            if len(lines) >= 3:
+                time_line = lines[1]
+                text_lines = lines[2:]
+                time_match = re.match(r'(\S+)\s*-->\s*(\S+)', time_line)
+                if time_match:
+                    start_time = parse_srt_time(time_match.group(1))
+                    end_time = parse_srt_time(time_match.group(2))
+                    text = ' '.join(text_lines).strip()
+                    if text:
+                        subtitle_segments.append(SubtitleSegment(
+                            index=i,
+                            text=text,
+                            startTime=start_time,
+                            endTime=end_time
+                        ))
+                        text_segments.append(TextSegment(index=i, text=text))
+
+    elif file_ext == '.vtt':
+        lines = content_str.split('\n')
+        i = 0
+        segment_index = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if '-->' in line:
+                time_match = re.match(r'(\S+)\s*-->\s*(\S+)', line)
+                if time_match:
+                    start_time = parse_vtt_time(time_match.group(1))
+                    end_time = parse_vtt_time(time_match.group(2))
+                    i += 1
+                    text_lines = []
+                    while i < len(lines) and lines[i].strip() != '':
+                        text_lines.append(lines[i].strip())
+                        i += 1
+                    text = ' '.join(text_lines).strip()
+                    if text:
+                        subtitle_segments.append(SubtitleSegment(
+                            index=segment_index,
+                            text=text,
+                            startTime=start_time,
+                            endTime=end_time
+                        ))
+                        text_segments.append(TextSegment(index=segment_index, text=text))
+                        segment_index += 1
+            i += 1
+
+    elif file_ext == '.lrc':
+        lines = content_str.split('\n')
+        segment_index = 0
+        for line in lines:
+            line = line.strip()
+            time_match = re.match(r'\[(\d+:\d+\.\d+)\](.*)', line)
+            if time_match:
+                time_str = time_match.group(1)
+                text = time_match.group(2).strip()
+                if text:
+                    start_time = parse_lrc_time(time_str)
+                    subtitle_segments.append(SubtitleSegment(
+                        index=segment_index,
+                        text=text,
+                        startTime=start_time,
+                        endTime=start_time + 5.0
+                    ))
+                    text_segments.append(TextSegment(index=segment_index, text=text))
+                    segment_index += 1
+
+    else:
+        lines = [line.strip() for line in content_str.split('\n') if line.strip()]
+        for i, line in enumerate(lines):
+            subtitle_segments.append(SubtitleSegment(
+                index=i,
+                text=line,
+                startTime=i * 5.0,
+                endTime=(i + 1) * 5.0
+            ))
+            text_segments.append(TextSegment(index=i, text=line))
+
+    project.subtitleFilePath = f"subtitles/{subtitle_filename}"
+    project.subtitleSegments = subtitle_segments
+    project.sourceText = '\n'.join([t.text for t in text_segments])
+
+    storage.save_project(project)
+    return {
+        "success": True,
+        "subtitleSegments": subtitle_segments,
+        "textSegments": text_segments
+    }
+
+
+@router.delete("/projects/{project_id}/subtitle")
+async def delete_subtitle(project_id: str):
+    """删除已上传的字幕 - AI漫画项目"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.type != ProjectType.NOVEL_COMIC:
+        raise HTTPException(status_code=400, detail="Not a novel comic project")
+
+    project.subtitleFilePath = None
+    project.subtitleSegments = []
+    storage.save_project(project)
+    return {"success": True}
+
+
+@router.post("/projects/{project_id}/upload-audio")
+async def upload_audio(project_id: str, file: UploadFile = File(...)):
+    """上传音频文件 - AI漫画项目"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.type != ProjectType.NOVEL_COMIC:
+        raise HTTPException(status_code=400, detail="Not a novel comic project")
+
+    proj_dir = Path(settings.data_dir) / "projects" / project_id
+    audio_dir = proj_dir / "audio"
+    audio_dir.mkdir(exist_ok=True)
+
+    file_ext = Path(file.filename).suffix.lower() if file.filename else '.wav'
+    audio_filename = f"uploaded_{uuid.uuid4()}{file_ext}"
+    audio_path = audio_dir / audio_filename
+
+    content = await file.read()
+    with open(audio_path, 'wb') as f:
+        f.write(content)
+
+    duration = get_audio_duration(audio_path)
+
+    if duration <= 0 and project.subtitleSegments:
+        last_subtitle = project.subtitleSegments[-1]
+        duration = last_subtitle.endTime
+        logger.info(f"Using subtitle duration: {duration}s")
+
+    if duration <= 0:
+        duration = 30.0
+        logger.warning(f"Using default duration: {duration}s")
+
+    audio_clip = AudioClip(
+        index=0,
+        textSegmentId=str(uuid.uuid4()),
+        text=file.filename or "上传的音频",
+        audioPath=f"audio/{audio_filename}",
+        duration=duration,
+        startTime=0.0,
+        endTime=duration,
+        status=GenerationStatus.COMPLETED
+    )
+
+    project.uploadedAudioFiles.append(f"audio/{audio_filename}")
+
+    storage.save_project(project)
+    return {
+        "success": True,
+        "audioClip": audio_clip
+    }
+
+
+@router.post("/projects/{project_id}/upload-audios")
+async def upload_audios(project_id: str, files: List[UploadFile] = File(...)):
+    """批量上传音频文件 - AI漫画项目"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.type != ProjectType.NOVEL_COMIC:
+        raise HTTPException(status_code=400, detail="Not a novel comic project")
+
+    proj_dir = Path(settings.data_dir) / "projects" / project_id
+    audio_dir = proj_dir / "audio"
+    audio_dir.mkdir(exist_ok=True)
+
+    uploaded_clips = []
+
+    sorted_files = sorted(files, key=lambda f: f.filename or "")
+
+    for file in sorted_files:
+        file_ext = Path(file.filename).suffix.lower() if file.filename else '.wav'
+        audio_filename = f"uploaded_{uuid.uuid4()}{file_ext}"
+        audio_path = audio_dir / audio_filename
+
+        content = await file.read()
+        with open(audio_path, 'wb') as f:
+            f.write(content)
+
+        duration = get_audio_duration(audio_path)
+
+        if duration <= 0:
+            duration = 5.0
+            logger.warning(f"Using default duration for {file.filename}: {duration}s")
+
+        audio_clip = AudioClip(
+            index=len(uploaded_clips),
+            textSegmentId=str(uuid.uuid4()),
+            text=file.filename or "上传的音频",
+            audioPath=f"audio/{audio_filename}",
+            duration=duration,
+            startTime=0.0,
+            endTime=duration,
+            status=GenerationStatus.COMPLETED
+        )
+
+        uploaded_clips.append(audio_clip)
+        project.uploadedAudioFiles.append(f"audio/{audio_filename}")
+
+    storage.save_project(project)
+    return {
+        "success": True,
+        "audioClips": uploaded_clips
+    }
+
+
+@router.delete("/projects/{project_id}/audios")
+async def delete_uploaded_audios(project_id: str):
+    """删除所有上传的音频 - AI漫画项目"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.type != ProjectType.NOVEL_COMIC:
+        raise HTTPException(status_code=400, detail="Not a novel comic project")
+
+    project.uploadedAudioFiles = []
+    storage.save_project(project)
+    return {"success": True}
