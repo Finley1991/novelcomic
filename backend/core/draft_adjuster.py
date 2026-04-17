@@ -65,7 +65,9 @@ class DraftAdjuster:
 
         # 构建 styles
         styles = [{
+            "bold": False,
             "fill": {
+                "alpha": 1.0,
                 "content": {
                     "render_type": "solid",
                     "solid": {
@@ -74,15 +76,15 @@ class DraftAdjuster:
                     }
                 }
             },
+            "font": {
+                "id": "6740435892441190919",
+                "path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf"
+            },
+            "italic": False,
             "range": [0, len(content.encode('utf-16-le'))],
             "size": style.fontSize,
+            "underline": False,
         }]
-
-        # 添加字体
-        styles[0]["font"] = {
-            "id": "6740435892441190919",
-            "path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf"
-        }
 
         # 添加描边
         if style.strokeColor and style.strokeWidth > 0:
@@ -109,7 +111,7 @@ class DraftAdjuster:
             "add_type": 0,
             "alignment": style.align,
             "background_alpha": 1.0,
-            "background_color": "",
+            "background_color": "#000000",
             "background_height": 0.14,
             "background_horizontal_offset": 0.0,
             "background_round_radius": 0.0,
@@ -119,9 +121,20 @@ class DraftAdjuster:
             "base_content": "",
             "bold_width": 0.0,
             "border_alpha": 1.0,
-            "border_color": style.strokeColor or "",
+            "border_color": "#000000",
             "border_width": style.strokeWidth,
-            "check_flag": 15 if style.strokeColor else 7,
+            "caption_template_info": {
+                "category_id": "",
+                "category_name": "",
+                "effect_id": "",
+                "is_new": False,
+                "path": "",
+                "request_id": "",
+                "resource_id": "",
+                "resource_name": "",
+                "source_platform": 0
+            },
+            "check_flag": 15,
             "combo_info": {"text_templates": []},
             "content": json.dumps(content_json, ensure_ascii=False),
             "fixed_height": -1.0,
@@ -130,32 +143,20 @@ class DraftAdjuster:
             "font_category_name": "",
             "font_id": "",
             "font_name": "",
-            "font_path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf",
-            "font_resource_id": "6740435892441190919",
-            "font_size": style.fontSize,
+            "font_path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/SystemFont/zh-hans.ttf",
+            "font_resource_id": "",
+            "font_size": style.fontSize + 2.0,  # font_size 比 styles.size 大 2
             "font_source_platform": 0,
             "font_team_id": "",
             "font_title": "none",
             "font_url": "",
-            "fonts": [{
-                "category_id": "user",
-                "category_name": "最近使用",
-                "effect_id": "6740435892441190919",
-                "file_uri": "",
-                "id": str(uuid.uuid4()).upper(),
-                "path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf",
-                "request_id": "",
-                "resource_id": "6740435892441190919",
-                "source_platform": 0,
-                "team_id": "",
-                "title": "新青年体"
-            }],
+            "fonts": [],
             "force_apply_line_max_width": False,
             "global_alpha": style.alpha,
             "group_id": "",
             "has_shadow": False,
             "id": text_mat_id,
-            "initial_scale": 1.0,
+            "initial_scale": 0.0,
             "inner_padding": -1.0,
             "is_rich_text": False,
             "italic_degree": 0,
@@ -670,7 +671,7 @@ class DraftAdjuster:
         # 找到或创建音频轨道（用于配乐）
         bgm_track = None
         for track in tracks:
-            if track.get('type') == 'audio' and 'bgm' in track.get('name', '').lower():
+            if track.get('type') == 'audio' and track.get('name', '') == '':
                 bgm_track = track
                 break
 
@@ -679,10 +680,10 @@ class DraftAdjuster:
             bgm_track = {
                 "id": str(uuid.uuid4()).upper(),
                 "is_mute": 0,
-                "name": "bgm_track",
+                "name": "",
                 "prev_seg_id": "",
-                "relative_index": 1,
-                "render_index": 1,
+                "relative_index": 0,
+                "render_index": 0,
                 "segments": [],
                 "type": "audio"
             }
@@ -695,6 +696,9 @@ class DraftAdjuster:
             use_duration = min(audio_duration_us, remaining_duration)
 
             seg_id = str(uuid.uuid4()).upper()
+
+            # 使用固定的配乐音量（-27dB）
+            bgm_volume = 0.032125454396009445
 
             segment = {
                 "clip": {
@@ -721,7 +725,7 @@ class DraftAdjuster:
                 "keyframe_refs": [],
                 "last_nonzero_volume": 1.0,
                 "material_id": audio_mat_id,
-                "render_index": max_render_index + 1 + segment_index,
+                "render_index": 0,
                 "responsive_layout": {
                     "enable": False,
                     "horizontal_pos_layout": 0,
@@ -739,7 +743,7 @@ class DraftAdjuster:
                 "track_render_index": 0,
                 "uniform_scale": {"on": True, "value": 1.0},
                 "visible": True,
-                "volume": volume
+                "volume": bgm_volume
             }
 
             # 添加淡入淡出（TODO：完整的淡入淡出需要关键帧，这里先设置固定音量）
