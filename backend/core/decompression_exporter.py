@@ -117,10 +117,15 @@ class DecompressionJianyingExporter:
             logger.info(f"图片素材数量: {len(data.imageClips)}")
             logger.info(f"音频片段数量: {len(data.audioClips)}")
 
-            # 添加视频素材（下层轨道）- 重新计算时间确保连续
+            # 先添加音频和字幕，获取总音频时长
+            logger.info("添加音频和字幕...")
+            total_audio_duration_us = self._add_audio_and_subtitles(script, data.audioClips, data.subtitleSegments, materials_map, draft, draft_dir, trange)
+            logger.info(f"总音频时长: {total_audio_duration_us / 1_000_000:.2f}s")
+
+            # 添加视频素材（下层轨道）- 确保视频时长至少达到音频时长
             if data.videoClips and len(data.videoClips) > 0:
                 logger.info("添加视频素材...")
-                self._add_video_clips(script, data.videoClips, materials_map, draft, draft_dir, trange)
+                self._add_video_clips(script, data.videoClips, materials_map, draft, draft_dir, trange, total_audio_duration_us)
             else:
                 logger.warning("没有视频素材，跳过视频轨道")
 
@@ -130,10 +135,6 @@ class DecompressionJianyingExporter:
                 self._add_image_clips(script, data.imageClips, materials_map, draft, draft_dir, trange)
             else:
                 logger.warning("没有图片素材或不支持多轨道，跳过图片轨道")
-
-            # 添加音频和字幕 - 重新计算时间确保连续
-            logger.info("添加音频和字幕...")
-            self._add_audio_and_subtitles(script, data.audioClips, data.subtitleSegments, materials_map, draft, draft_dir, trange)
 
             # 保存草稿
             logger.info("保存草稿...")
@@ -218,10 +219,18 @@ class DecompressionJianyingExporter:
 
         return materials_map
 
-    def _add_video_clips(self, script, video_clips, materials_map, draft, draft_dir: Path, trange):
-        """添加视频素材到轨道"""
-        current_start_us = 0
+    def _add_video_clips(self, script, video_clips, materials_map, draft, draft_dir: Path, trange, target_duration_us: int = 0):
+        """添加视频素材到轨道
 
+        Args:
+            target_duration_us: 目标总时长（微秒），如果大于0则循环添加视频直到达到此时长
+        """
+        current_start_us = 0
+        clip_index = 0
+        video_count = len(video_clips)
+
+        # 先加载所有视频素材并获取它们的时长
+        video_materials = []
         for clip in video_clips:
             clip_map = materials_map.get(clip.id, {})
             if "video" not in clip_map:
@@ -232,15 +241,37 @@ class DecompressionJianyingExporter:
             script.add_material(img_material)
 
             material_duration_us = img_material.duration
-
-            # 使用素材的实际时长，减去安全余量
             use_duration_us = material_duration_us - 10000  # 减去10ms余量
             use_duration_us = max(use_duration_us, 100000)  # 最少0.1秒
 
+            video_materials.append({
+                "material": img_material,
+                "path": img_path,
+                "duration": use_duration_us
+            })
+
+        if not video_materials:
+            logger.warning("没有可用的视频素材")
+            return
+
+        logger.info(f"已加载 {len(video_materials)} 个视频素材")
+
+        # 循环添加视频素材直到达到目标时长
+        while target_duration_us == 0 or current_start_us < target_duration_us:
+            video_info = video_materials[clip_index % len(video_materials)]
+            img_material = video_info["material"]
+            use_duration_us = video_info["duration"]
+            img_path = video_info["path"]
+
+            # 如果是最后一个片段且超过目标时长，裁剪它
+            remaining_duration = target_duration_us - current_start_us
+            if target_duration_us > 0 and remaining_duration < use_duration_us:
+                use_duration_us = remaining_duration
+                logger.info(f"裁剪最后一个视频片段到 {use_duration_us / 1_000_000:.2f}s")
+
             logger.info(f"视频素材: {img_path}")
-            logger.info(f"  素材时长: {material_duration_us}us")
-            logger.info(f"  使用时长: {use_duration_us}us")
-            logger.info(f"  开始时间: {current_start_us}us")
+            logger.info(f"  使用时长: {use_duration_us / 1_000_000:.2f}s")
+            logger.info(f"  开始时间: {current_start_us / 1_000_000:.2f}s")
 
             # 显式指定 source_timerange 和 target_timerange
             source_timerange = draft.Timerange(0, use_duration_us)
@@ -256,6 +287,13 @@ class DecompressionJianyingExporter:
 
             # 更新下一个片段的开始时间
             current_start_us += use_duration_us
+            clip_index += 1
+
+            # 如果没有目标时长，只添加一遍就退出
+            if target_duration_us == 0 and clip_index >= len(video_materials):
+                break
+
+        logger.info(f"视频轨道总时长: {current_start_us / 1_000_000:.2f}s")
 
     def _add_image_clips(self, script, image_clips, materials_map, draft, draft_dir: Path, trange):
         """添加图片素材到上层轨道"""
@@ -296,8 +334,12 @@ class DecompressionJianyingExporter:
             video_seg.add_keyframe(KeyframeProperty.uniform_scale, duration_us, 1.0)
             script.add_segment(video_seg, "image_track")
 
-    def _add_audio_and_subtitles(self, script, audio_clips, subtitle_segments, materials_map, draft, draft_dir: Path, trange):
-        """添加音频和字幕到轨道"""
+    def _add_audio_and_subtitles(self, script, audio_clips, subtitle_segments, materials_map, draft, draft_dir: Path, trange) -> int:
+        """添加音频和字幕到轨道
+
+        Returns:
+            总音频时长（微秒）
+        """
         current_start_us = 0
 
         # 先添加所有音频片段
@@ -336,6 +378,8 @@ class DecompressionJianyingExporter:
                 # 更新下一个片段的开始时间
                 current_start_us += use_duration_us
 
+        total_audio_duration_us = current_start_us
+
         # 添加上传的字幕片段
         if subtitle_segments and len(subtitle_segments) > 0:
             logger.info(f"添加 {len(subtitle_segments)} 个上传的字幕片段...")
@@ -362,3 +406,5 @@ class DecompressionJianyingExporter:
                 script.add_segment(text_seg, "subtitle_track")
         else:
             logger.warning("没有上传的字幕片段，跳过字幕轨道")
+
+        return total_audio_duration_us
