@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 import uuid
 import sys
+import wave
+from pymediainfo import MediaInfo
 
 from config import settings
 from models.schemas import (
@@ -53,6 +55,32 @@ class DraftAdjuster:
     def _get_total_duration_us(self) -> int:
         """获取草稿总时长（微秒）"""
         return self.data.get('duration', 0)
+
+    def _get_audio_duration(self, audio_path: Path) -> float:
+        """获取音频文件时长（支持多种格式，返回秒）"""
+        try:
+            # 先尝试用 pymediainfo 获取（支持多种格式）
+            media_info = MediaInfo.parse(str(audio_path))
+            for track in media_info.tracks:
+                if track.track_type == 'Audio':
+                    if track.duration:
+                        return float(track.duration) / 1000.0  # 毫秒转秒
+        except Exception as e:
+            logger.warning(f"Failed to get duration with pymediainfo: {e}")
+
+        # 如果 pymediainfo 失败，尝试用 wave（仅支持 wav）
+        try:
+            if audio_path.suffix.lower() == '.wav':
+                with wave.open(str(audio_path), 'rb') as wav_file:
+                    frames = wav_file.getnframes()
+                    rate = wav_file.getframerate()
+                    return frames / float(rate)
+        except Exception as e:
+            logger.warning(f"Failed to get duration with wave: {e}")
+
+        # 默认返回 3 分钟（兜底）
+        logger.warning(f"Using default duration for audio: {audio_path}")
+        return 180.0
 
     def _add_text_segment_direct(self, content: str, style: TextStyleConfig,
                                    duration_us: int, start_us: int = 0,
@@ -649,11 +677,13 @@ class DraftAdjuster:
             self.data['materials']['audios'] = []
         self.data['materials']['audios'].append(audio_material)
 
-        # 获取音频素材时长（需要读取实际音频文件信息）
-        # 先尝试获取素材时长，默认 10 分钟
-        audio_duration_us = 600_000_000  # 默认 10 分钟
-        if 'duration' in audio_material:
-            audio_duration_us = audio_material['duration']
+        # 获取音频素材真实时长
+        audio_duration_sec = self._get_audio_duration(src_path)
+        audio_duration_us = int(audio_duration_sec * 1_000_000)
+        logger.info(f"Audio duration: {audio_duration_sec:.2f}s ({audio_duration_us}us)")
+
+        # 更新素材的时长字段
+        audio_material['duration'] = audio_duration_us
 
         # 创建音频片段，循环填充直到目标时长
         current_start_us = 0
