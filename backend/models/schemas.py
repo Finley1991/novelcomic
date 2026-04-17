@@ -631,7 +631,7 @@ class DraftAdjustmentConfig(BaseModel):
     # 配乐
     bgMusicEnabled: bool = False
     bgMusicPath: Optional[str] = None
-    bgMusicVolume: float = 0.04425  # -27dB
+    bgMusicVolume: float = 0.03162277660168379  # -30dB
     bgMusicFadeInDuration: float = 1.0  # 秒
     bgMusicFadeOutDuration: float = 1.0  # 秒
 

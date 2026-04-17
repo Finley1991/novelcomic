@@ -36,6 +36,7 @@ const defaultWatermarkStyle: WatermarkStyleConfig = {
 };
 
 const defaultConfig: DraftAdjustmentConfig = {
+  coverImagePath: undefined,
   coverDuration: 3,
   coverTitleEnabled: false,
   coverTitle: '',
@@ -54,7 +55,8 @@ const defaultConfig: DraftAdjustmentConfig = {
   watermarkText: '',
   watermarkStyle: { ...defaultWatermarkStyle },
   bgMusicEnabled: false,
-  bgMusicVolume: 0.04425,
+  bgMusicPath: undefined,
+  bgMusicVolume: 0.03162277660168379,
   bgMusicFadeInDuration: 1,
   bgMusicFadeOutDuration: 1,
 };
@@ -81,6 +83,8 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [config, setConfig] = useState<DraftAdjustmentConfig>({ ...defaultConfig });
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingMusic, setUploadingMusic] = useState(false);
 
   if (!isOpen) return null;
 
@@ -120,6 +124,36 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
     setDraftPath('');
     setDraftInfo(null);
     setConfig({ ...defaultConfig });
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const res = await draftAdjustApi.uploadCover(file);
+      setConfig(prev => ({ ...prev, coverImagePath: res.data.path }));
+    } catch (e) {
+      console.error('Failed to upload cover:', e);
+      alert('封面上传失败');
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handleMusicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingMusic(true);
+    try {
+      const res = await draftAdjustApi.uploadMusic(file);
+      setConfig(prev => ({ ...prev, bgMusicPath: res.data.path, bgMusicEnabled: true }));
+    } catch (e) {
+      console.error('Failed to upload music:', e);
+      alert('音乐上传失败');
+    } finally {
+      setUploadingMusic(false);
+    }
   };
 
   return (
@@ -189,13 +223,48 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
 
           {draftInfo?.success && (
             <>
+              {/* 封面图片 */}
+              <div className="border-t border-light-divider dark:border-dark-divider pt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  封面图片
+                </label>
+                <div className="space-y-2">
+                  {config.coverImagePath ? (
+                    <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                      <span className="text-sm text-gray-600 dark:text-gray-400 truncate flex-1">
+                        {config.coverImagePath}
+                      </span>
+                      <button
+                        onClick={() => setConfig(prev => ({ ...prev, coverImagePath: undefined }))}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        移除
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-4 py-2 border border-dashed rounded cursor-pointer hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCoverUpload}
+                        disabled={uploadingCover}
+                        className="hidden"
+                      />
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {uploadingCover ? '上传中...' : '点击上传封面图片'}
+                      </span>
+                    </label>
+                  )}
+                </div>
+              </div>
+
               {/* 封面标题 */}
               <div className="border-t border-light-divider dark:border-dark-divider pt-4">
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={config.coverTitleEnabled}
-                    onChange={(e) => setConfig({ ...config, coverTitleEnabled: e.target.checked })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, coverTitleEnabled: e.target.checked }))}
                     className="rounded"
                   />
                   <span className="font-medium text-gray-900 dark:text-gray-100">添加封面标题</span>
@@ -205,7 +274,7 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
                     <input
                       type="text"
                       value={config.coverTitle}
-                      onChange={(e) => setConfig({ ...config, coverTitle: e.target.value })}
+                      onChange={(e) => setConfig(prev => ({ ...prev, coverTitle: e.target.value }))}
                       className="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white"
                       placeholder="输入标题..."
                     />
@@ -219,7 +288,7 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
                   <input
                     type="checkbox"
                     checked={config.textEnabled}
-                    onChange={(e) => setConfig({ ...config, textEnabled: e.target.checked })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, textEnabled: e.target.checked }))}
                     className="rounded"
                   />
                   <span className="font-medium text-gray-900 dark:text-gray-100">添加文本</span>
@@ -228,7 +297,7 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
                   <div className="mt-3 space-y-3">
                     <textarea
                       value={config.textContent}
-                      onChange={(e) => setConfig({ ...config, textContent: e.target.value })}
+                      onChange={(e) => setConfig(prev => ({ ...prev, textContent: e.target.value }))}
                       className="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white"
                       rows={3}
                       placeholder="输入文本..."
@@ -243,7 +312,7 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
                   <input
                     type="checkbox"
                     checked={config.watermarkEnabled}
-                    onChange={(e) => setConfig({ ...config, watermarkEnabled: e.target.checked })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, watermarkEnabled: e.target.checked }))}
                     className="rounded"
                   />
                   <span className="font-medium text-gray-900 dark:text-gray-100">添加水印</span>
@@ -253,7 +322,7 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
                     <input
                       type="text"
                       value={config.watermarkText}
-                      onChange={(e) => setConfig({ ...config, watermarkText: e.target.value })}
+                      onChange={(e) => setConfig(prev => ({ ...prev, watermarkText: e.target.value }))}
                       className="w-full px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white"
                       placeholder="@用户名"
                     />
@@ -263,17 +332,45 @@ export const DraftAdjustmentModal: React.FC<DraftAdjustmentModalProps> = ({
 
               {/* 配乐 */}
               <div className="border-t border-light-divider dark:border-dark-divider pt-4">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 mb-3">
                   <input
                     type="checkbox"
                     checked={config.bgMusicEnabled}
-                    onChange={(e) => setConfig({ ...config, bgMusicEnabled: e.target.checked })}
+                    onChange={(e) => setConfig(prev => ({ ...prev, bgMusicEnabled: e.target.checked }))}
                     className="rounded"
-                    disabled={true}
                   />
                   <span className="font-medium text-gray-900 dark:text-gray-100">添加配乐</span>
-                  <span className="text-gray-400 text-sm ml-2">(待实现)</span>
                 </label>
+                {config.bgMusicEnabled && (
+                  <div className="space-y-2">
+                    {config.bgMusicPath ? (
+                      <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                        <span className="text-sm text-gray-600 dark:text-gray-400 truncate flex-1">
+                          {config.bgMusicPath}
+                        </span>
+                        <button
+                          onClick={() => setConfig(prev => ({ ...prev, bgMusicPath: undefined }))}
+                          className="text-red-500 hover:text-red-700 text-sm"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center gap-2 px-4 py-2 border border-dashed rounded cursor-pointer hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800">
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          onChange={handleMusicUpload}
+                          disabled={uploadingMusic}
+                          className="hidden"
+                        />
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {uploadingMusic ? '上传中...' : '点击上传配乐文件'}
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

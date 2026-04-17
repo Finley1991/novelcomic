@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict, Optional, List, Any
 import uuid
 import sys
+import wave
+from pymediainfo import MediaInfo
 
 from config import settings
 from models.schemas import (
@@ -54,6 +56,32 @@ class DraftAdjuster:
         """获取草稿总时长（微秒）"""
         return self.data.get('duration', 0)
 
+    def _get_audio_duration(self, audio_path: Path) -> float:
+        """获取音频文件时长（支持多种格式，返回秒）"""
+        try:
+            # 先尝试用 pymediainfo 获取（支持多种格式）
+            media_info = MediaInfo.parse(str(audio_path))
+            for track in media_info.tracks:
+                if track.track_type == 'Audio':
+                    if track.duration:
+                        return float(track.duration) / 1000.0  # 毫秒转秒
+        except Exception as e:
+            logger.warning(f"Failed to get duration with pymediainfo: {e}")
+
+        # 如果 pymediainfo 失败，尝试用 wave（仅支持 wav）
+        try:
+            if audio_path.suffix.lower() == '.wav':
+                with wave.open(str(audio_path), 'rb') as wav_file:
+                    frames = wav_file.getnframes()
+                    rate = wav_file.getframerate()
+                    return frames / float(rate)
+        except Exception as e:
+            logger.warning(f"Failed to get duration with wave: {e}")
+
+        # 默认返回 3 分钟（兜底）
+        logger.warning(f"Using default duration for audio: {audio_path}")
+        return 180.0
+
     def _add_text_segment_direct(self, content: str, style: TextStyleConfig,
                                    duration_us: int, start_us: int = 0,
                                    add_keyframes: bool = False,
@@ -65,7 +93,9 @@ class DraftAdjuster:
 
         # 构建 styles
         styles = [{
+            "bold": False,
             "fill": {
+                "alpha": 1.0,
                 "content": {
                     "render_type": "solid",
                     "solid": {
@@ -74,15 +104,15 @@ class DraftAdjuster:
                     }
                 }
             },
+            "font": {
+                "id": "6740435892441190919",
+                "path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf"
+            },
+            "italic": False,
             "range": [0, len(content.encode('utf-16-le'))],
             "size": style.fontSize,
+            "underline": False,
         }]
-
-        # 添加字体
-        styles[0]["font"] = {
-            "id": "6740435892441190919",
-            "path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf"
-        }
 
         # 添加描边
         if style.strokeColor and style.strokeWidth > 0:
@@ -109,7 +139,7 @@ class DraftAdjuster:
             "add_type": 0,
             "alignment": style.align,
             "background_alpha": 1.0,
-            "background_color": "",
+            "background_color": "#000000",
             "background_height": 0.14,
             "background_horizontal_offset": 0.0,
             "background_round_radius": 0.0,
@@ -119,9 +149,20 @@ class DraftAdjuster:
             "base_content": "",
             "bold_width": 0.0,
             "border_alpha": 1.0,
-            "border_color": style.strokeColor or "",
+            "border_color": "#000000",
             "border_width": style.strokeWidth,
-            "check_flag": 15 if style.strokeColor else 7,
+            "caption_template_info": {
+                "category_id": "",
+                "category_name": "",
+                "effect_id": "",
+                "is_new": False,
+                "path": "",
+                "request_id": "",
+                "resource_id": "",
+                "resource_name": "",
+                "source_platform": 0
+            },
+            "check_flag": 15,
             "combo_info": {"text_templates": []},
             "content": json.dumps(content_json, ensure_ascii=False),
             "fixed_height": -1.0,
@@ -130,32 +171,20 @@ class DraftAdjuster:
             "font_category_name": "",
             "font_id": "",
             "font_name": "",
-            "font_path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf",
-            "font_resource_id": "6740435892441190919",
-            "font_size": style.fontSize,
+            "font_path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/SystemFont/zh-hans.ttf",
+            "font_resource_id": "",
+            "font_size": style.fontSize + 2.0,  # font_size 比 styles.size 大 2
             "font_source_platform": 0,
             "font_team_id": "",
             "font_title": "none",
             "font_url": "",
-            "fonts": [{
-                "category_id": "user",
-                "category_name": "最近使用",
-                "effect_id": "6740435892441190919",
-                "file_uri": "",
-                "id": str(uuid.uuid4()).upper(),
-                "path": "/Applications/VideoFusion-macOS.app/Contents/Resources/Font/新青年体.ttf",
-                "request_id": "",
-                "resource_id": "6740435892441190919",
-                "source_platform": 0,
-                "team_id": "",
-                "title": "新青年体"
-            }],
+            "fonts": [],
             "force_apply_line_max_width": False,
             "global_alpha": style.alpha,
             "group_id": "",
             "has_shadow": False,
             "id": text_mat_id,
-            "initial_scale": 1.0,
+            "initial_scale": 0.0,
             "inner_padding": -1.0,
             "is_rich_text": False,
             "italic_degree": 0,
@@ -430,9 +459,157 @@ class DraftAdjuster:
         return [r, g, b]
 
     def add_cover_image(self, image_path: str, duration: float = 3.0):
-        """添加封面图片（TODO：待完善）"""
-        logger.info("Cover image feature not fully implemented yet")
-        pass
+        """添加封面图片"""
+        src_path = Path(image_path)
+        if not src_path.exists():
+            logger.error(f"Cover image not found: {image_path}")
+            return
+
+        duration_us = int(duration * 1_000_000)
+        logger.info(f"Adding cover image: {image_path}, duration: {duration}s")
+
+        # 复制图片到草稿目录
+        ext = src_path.suffix or ".png"
+        cover_id = uuid.uuid4().hex.replace('-', '')
+        dst_path = self.draft_path / f"cover_{cover_id}{ext}"
+        shutil.copy2(src_path, dst_path)
+
+        # 创建视频素材（图片在剪映中作为视频素材处理）
+        video_mat_id = uuid.uuid4().hex.replace('-', '')
+
+        # 先检查是否有其他视频素材来获取参考结构
+        reference_material = None
+        if 'materials' in self.data and 'videos' in self.data['materials']:
+            videos = self.data['materials']['videos']
+            if videos:
+                reference_material = videos[0]
+
+        if reference_material:
+            # 基于参考素材创建新素材
+            video_material = reference_material.copy()
+            video_material['id'] = video_mat_id
+            video_material['file_Path'] = str(dst_path.name)
+            video_material['path'] = str(dst_path)
+
+            # 获取图片实际时长（图片通常时长很大）
+            if 'duration' in video_material:
+                video_material['duration'] = 10800000000  # 3小时
+        else:
+            # 创建基本的视频素材结构
+            video_material = {
+                "id": video_mat_id,
+                "file_Path": str(dst_path.name),
+                "path": str(dst_path),
+                "type": "video",
+                "duration": 10800000000,
+                "width": 1080,
+                "height": 1920
+            }
+
+        # 添加到 materials.videos
+        if 'materials' not in self.data:
+            self.data['materials'] = {}
+        if 'videos' not in self.data['materials']:
+            self.data['materials']['videos'] = []
+        self.data['materials']['videos'].append(video_material)
+
+        # 创建视频片段（在开头）
+        seg_id = str(uuid.uuid4()).upper()
+
+        # 计算最大 render_index
+        max_render_index = 0
+        tracks = self.data.get('tracks', [])
+        for track in tracks:
+            segs = track.get('segments', [])
+            for seg in segs:
+                ri = seg.get('render_index', 0)
+                if ri > max_render_index:
+                    max_render_index = ri
+
+        segment = {
+            "clip": {
+                "alpha": 1.0,
+                "flip": {"horizontal": False, "vertical": False},
+                "rotation": 0.0,
+                "scale": {"x": 1.0, "y": 1.0},
+                "transform": {"x": 0.0, "y": 0.0}
+            },
+            "enable_adjust": False,
+            "enable_color_correct_adjust": False,
+            "enable_color_curves": True,
+            "enable_color_match_adjust": False,
+            "enable_color_wheels": True,
+            "enable_lut": False,
+            "enable_smart_color_adjust": False,
+            "extra_material_refs": [],
+            "group_id": "",
+            "hdr_settings": None,
+            "id": seg_id,
+            "intensifies_audio": False,
+            "is_placeholder": False,
+            "is_tone_modify": False,
+            "keyframe_refs": [],
+            "last_nonzero_volume": 1.0,
+            "material_id": video_mat_id,
+            "render_index": max_render_index + 1,
+            "responsive_layout": {
+                "enable": False,
+                "horizontal_pos_layout": 0,
+                "size_layout": 0,
+                "target_follow": "",
+                "vertical_pos_layout": 0
+            },
+            "reverse": False,
+            "source_timerange": {"duration": duration_us, "start": 0},
+            "speed": 1.0,
+            "target_timerange": {"duration": duration_us, "start": 0},
+            "template_id": "",
+            "template_scene": "default",
+            "track_attribute": 0,
+            "track_render_index": 0,
+            "uniform_scale": {"on": True, "value": 1.0},
+            "visible": True,
+            "volume": 1.0
+        }
+
+        # 找到或创建视频轨道
+        video_track = None
+        for track in tracks:
+            if track.get('type') == 'video':
+                video_track = track
+                break
+
+        if not video_track:
+            # 创建新的视频轨道
+            video_track = {
+                "id": str(uuid.uuid4()).upper(),
+                "is_mute": 0,
+                "name": "video_track",
+                "prev_seg_id": "",
+                "relative_index": 0,
+                "render_index": 0,
+                "segments": [],
+                "type": "video"
+            }
+            self.data['tracks'].insert(0, video_track)
+
+        # 插入到片段列表开头
+        video_track['segments'].insert(0, segment)
+
+        # 更新其他所有片段的时间（向后推移封面时长）
+        for track in tracks:
+            if track is not video_track:
+                segs = track.get('segments', [])
+                for seg in segs:
+                    tr = seg.get('target_timerange', {})
+                    if 'start' in tr:
+                        tr['start'] += duration_us
+
+        # 更新总时长
+        if 'duration' in self.data:
+            self.data['duration'] += duration_us
+
+        logger.info(f"Cover image added successfully")
 
     def add_text(self, content: str, style: TextStyleConfig, duration_us: int):
         """添加文本片段"""
@@ -454,14 +631,166 @@ class DraftAdjuster:
     def add_background_music(self, music_path: str, volume: float,
                                fade_in: float, fade_out: float,
                                target_duration_us: int):
-        """添加配乐（TODO：待完善）"""
-        logger.info("Background music feature not fully implemented yet")
-        pass
+        """添加配乐"""
+        src_path = Path(music_path)
+        if not src_path.exists():
+            logger.error(f"Music file not found: {music_path}")
+            return
+
+        logger.info(f"Adding background music: {music_path}, volume: {volume}")
+
+        # 复制音频到草稿目录
+        ext = src_path.suffix or ".mp3"
+        music_id = uuid.uuid4().hex.replace('-', '')
+        dst_path = self.draft_path / f"bgm_{music_id}{ext}"
+        shutil.copy2(src_path, dst_path)
+
+        # 创建音频素材
+        audio_mat_id = uuid.uuid4().hex.replace('-', '')
+
+        # 先检查是否有其他音频素材来获取参考结构
+        reference_material = None
+        if 'materials' in self.data and 'audios' in self.data['materials']:
+            audios = self.data['materials']['audios']
+            if audios:
+                reference_material = audios[0]
+
+        if reference_material:
+            # 基于参考素材创建新素材
+            audio_material = reference_material.copy()
+            audio_material['id'] = audio_mat_id
+            audio_material['file_Path'] = str(dst_path.name)
+            audio_material['path'] = str(dst_path)
+        else:
+            # 创建基本的音频素材结构
+            audio_material = {
+                "id": audio_mat_id,
+                "file_Path": str(dst_path.name),
+                "path": str(dst_path),
+                "type": "audio"
+            }
+
+        # 添加到 materials.audios
+        if 'materials' not in self.data:
+            self.data['materials'] = {}
+        if 'audios' not in self.data['materials']:
+            self.data['materials']['audios'] = []
+        self.data['materials']['audios'].append(audio_material)
+
+        # 获取音频素材真实时长
+        audio_duration_sec = self._get_audio_duration(src_path)
+        audio_duration_us = int(audio_duration_sec * 1_000_000)
+        logger.info(f"Audio duration: {audio_duration_sec:.2f}s ({audio_duration_us}us)")
+
+        # 更新素材的时长字段
+        audio_material['duration'] = audio_duration_us
+
+        # 创建音频片段，循环填充直到目标时长
+        current_start_us = 0
+        tracks = self.data.get('tracks', [])
+
+        # 计算最大 render_index
+        max_render_index = 0
+        for track in tracks:
+            segs = track.get('segments', [])
+            for seg in segs:
+                ri = seg.get('render_index', 0)
+                if ri > max_render_index:
+                    max_render_index = ri
+
+        # 找到或创建音频轨道（用于配乐）
+        bgm_track = None
+        for track in tracks:
+            if track.get('type') == 'audio' and track.get('name', '') == '':
+                bgm_track = track
+                break
+
+        if not bgm_track:
+            # 创建新的配乐音频轨道
+            bgm_track = {
+                "id": str(uuid.uuid4()).upper(),
+                "is_mute": 0,
+                "name": "",
+                "prev_seg_id": "",
+                "relative_index": 0,
+                "render_index": 0,
+                "segments": [],
+                "type": "audio"
+            }
+            self.data['tracks'].append(bgm_track)
+
+        # 循环添加音频片段直到覆盖目标时长
+        segment_index = 0
+        while current_start_us < target_duration_us:
+            remaining_duration = target_duration_us - current_start_us
+            use_duration = min(audio_duration_us, remaining_duration)
+
+            seg_id = str(uuid.uuid4()).upper()
+
+            # 使用固定的配乐音量（-30dB）
+            bgm_volume = 0.03162277660168379
+
+            segment = {
+                "clip": {
+                    "alpha": 1.0,
+                    "flip": {"horizontal": False, "vertical": False},
+                    "rotation": 0.0,
+                    "scale": {"x": 1.0, "y": 1.0},
+                    "transform": {"x": 0.0, "y": 0.0}
+                },
+                "enable_adjust": False,
+                "enable_color_correct_adjust": False,
+                "enable_color_curves": True,
+                "enable_color_match_adjust": False,
+                "enable_color_wheels": True,
+                "enable_lut": False,
+                "enable_smart_color_adjust": False,
+                "extra_material_refs": [],
+                "group_id": "",
+                "hdr_settings": None,
+                "id": seg_id,
+                "intensifies_audio": False,
+                "is_placeholder": False,
+                "is_tone_modify": False,
+                "keyframe_refs": [],
+                "last_nonzero_volume": 1.0,
+                "material_id": audio_mat_id,
+                "render_index": 0,
+                "responsive_layout": {
+                    "enable": False,
+                    "horizontal_pos_layout": 0,
+                    "size_layout": 0,
+                    "target_follow": "",
+                    "vertical_pos_layout": 0
+                },
+                "reverse": False,
+                "source_timerange": {"duration": use_duration, "start": 0},
+                "speed": 1.0,
+                "target_timerange": {"duration": use_duration, "start": current_start_us},
+                "template_id": "",
+                "template_scene": "default",
+                "track_attribute": 0,
+                "track_render_index": 0,
+                "uniform_scale": {"on": True, "value": 1.0},
+                "visible": True,
+                "volume": bgm_volume
+            }
+
+            # 添加淡入淡出（TODO：完整的淡入淡出需要关键帧，这里先设置固定音量）
+            # 如果是第一个片段，添加淡入
+            # 如果是最后一个片段，添加淡出
+
+            bgm_track['segments'].append(segment)
+            current_start_us += use_duration
+            segment_index += 1
+
+        logger.info(f"Background music added successfully, {segment_index} segments")
 
     def apply(self, config: DraftAdjustmentConfig):
         """应用所有调整"""
         total_duration_us = self._get_total_duration_us()
         logger.info(f"Applying adjustments, total duration: {total_duration_us / 1_000_000:.2f}s")
+        logger.info(f"Config: bgMusicEnabled={config.bgMusicEnabled}, bgMusicPath={config.bgMusicPath}")
 
         # 封面
         if config.coverImagePath:
