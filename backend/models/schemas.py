@@ -238,6 +238,10 @@ class Project(BaseModel):
     scenes: List[Scene] = Field(default_factory=list)
     storyboards: List[Storyboard] = Field(default_factory=list)
     decompressionData: Optional[DecompressionProjectData] = None
+    # AI漫画项目的字幕和音频上传数据
+    subtitleFilePath: Optional[str] = None
+    subtitleSegments: List[SubtitleSegment] = Field(default_factory=list)
+    uploadedAudioFiles: List[str] = Field(default_factory=list)
 
 
 class ComfyUINodeMappings(BaseModel):

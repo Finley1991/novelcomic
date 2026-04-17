@@ -309,6 +309,10 @@ export interface Project {
   scenes: Scene[];
   storyboards: Storyboard[];
   decompressionData?: DecompressionProjectData;
+  // AI漫画项目的字幕和音频上传数据
+  subtitleFilePath?: string;
+  subtitleSegments: SubtitleSegment[];
+  uploadedAudioFiles: string[];
 }
 
 export interface ComfyUINodeInfo {
@@ -538,6 +542,31 @@ export const generationApi = {
     }),
   getStatus: (projectId: string) =>
     api.get(`/projects/${projectId}/generate/status`),
+  // AI漫画项目字幕上传
+  uploadSubtitle: (projectId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/projects/${projectId}/upload-subtitle`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
+  },
+  deleteSubtitle: (projectId: string) => api.delete(`/projects/${projectId}/subtitle`),
+  // AI漫画项目音频上传
+  uploadAudio: (projectId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/projects/${projectId}/upload-audio`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
+  },
+  uploadAudios: (projectId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    return api.post(`/projects/${projectId}/upload-audios`, formData, {
+      headers: { 'Content-Type': undefined }
+    });
+  },
+  deleteUploadedAudios: (projectId: string) => api.delete(`/projects/${projectId}/audios`),
 };
 
 export const exportApi = {

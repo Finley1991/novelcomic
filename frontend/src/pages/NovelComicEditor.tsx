@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   projectApi,
@@ -18,6 +18,7 @@ import {
 } from '../services/api';
 import { TTS_VOICES } from '../constants/ttsVoices';
 import { WizardSteps, wizardStepDefinitions, type WizardStep } from '../components/project/WizardSteps';
+import { useToast } from '../hooks/useToast';
 
 interface NovelComicEditorProps {
   project: Project;
@@ -27,6 +28,7 @@ interface NovelComicEditorProps {
 const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialProject, onProjectUpdate }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [project, setProject] = useState<Project>(initialProject);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -58,9 +60,18 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     images?: { completed: number; total: number };
     audio?: { completed: number; total: number };
   } | null>(null);
+  // 上传相关状态
+  const [uploadingSubtitle, setUploadingSubtitle] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const subtitleFileRef = useRef<HTMLInputElement>(null);
+  const audioFileRef = useRef<HTMLInputElement>(null);
+  // 本地文本状态，避免每次输入都调用 API
+  const [localSourceText, setLocalSourceText] = useState('');
 
   useEffect(() => {
     setProject(initialProject);
+    // 初始化本地文本状态
+    setLocalSourceText(initialProject.sourceText || '');
   }, [initialProject]);
 
   useEffect(() => {
@@ -98,10 +109,15 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           ...sb,
           sceneId: sb.sceneId ?? null,
           characterIds: sb.characterIds ?? []
-        }))
+        })),
+        // 确保新字段有默认值
+        subtitleSegments: originalData.subtitleSegments ?? [],
+        uploadedAudioFiles: originalData.uploadedAudioFiles ?? [],
       };
       setProject(projectData);
       onProjectUpdate(projectData);
+      // 更新本地文本
+      setLocalSourceText(projectData.sourceText || '');
     } catch (error) {
       console.error('Failed to load project:', error);
     }
@@ -122,6 +138,124 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
       setImagePromptTemplates(response.data);
     } catch (error) {
       console.error('Failed to load image prompt templates:', error);
+    }
+  };
+
+  // 字幕上传处理
+  const handleUploadSubtitle = async (file: File) => {
+    if (!id) return;
+    setUploadingSubtitle(true);
+    console.log('开始上传字幕文件:', file.name, file.size, file.type);
+    try {
+      const response = await generationApi.uploadSubtitle(id, file);
+      console.log('上传成功，响应数据:', response.data);
+      setLocalSourceText(response.data.textSegments.map((t: any) => t.text).join('\n'));
+      await loadProject();
+      addToast({
+        type: 'success',
+        message: `字幕上传成功！共 ${response.data.textSegments.length} 个片段`,
+      });
+    } catch (error: any) {
+      console.error('字幕上传失败 - 详细错误:', error);
+      console.error('错误响应:', error?.response);
+      console.error('错误消息:', error?.message);
+      const errorMsg = error?.response?.data?.detail || error?.message || '字幕上传失败，请重试';
+      addToast({
+        type: 'error',
+        message: errorMsg,
+      });
+    } finally {
+      setUploadingSubtitle(false);
+    }
+  };
+
+  const handleDeleteSubtitle = async () => {
+    if (!id) return;
+    try {
+      await generationApi.deleteSubtitle(id);
+      await loadProject();
+      addToast({
+        type: 'success',
+        message: '字幕已删除',
+      });
+    } catch (error: any) {
+      console.error('删除字幕失败:', error);
+      const errorMsg = error?.response?.data?.detail || error?.message || '删除字幕失败';
+      addToast({
+        type: 'error',
+        message: errorMsg,
+      });
+    }
+  };
+
+  // 音频上传处理
+  const handleUploadAudio = async (file: File) => {
+    if (!id) return;
+    setUploadingAudio(true);
+    console.log('开始上传音频文件:', file.name, file.size, file.type);
+    try {
+      const response = await generationApi.uploadAudio(id, file);
+      console.log('音频上传成功，响应数据:', response.data);
+      await loadProject();
+      addToast({
+        type: 'success',
+        message: `音频上传成功：${file.name}`,
+      });
+    } catch (error: any) {
+      console.error('音频上传失败 - 详细错误:', error);
+      console.error('错误响应:', error?.response);
+      const errorMsg = error?.response?.data?.detail || error?.message || '音频上传失败，请重试';
+      addToast({
+        type: 'error',
+        message: errorMsg,
+      });
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const handleUploadAudios = async (files: FileList) => {
+    if (!id) return;
+    setUploadingAudio(true);
+    console.log('开始批量上传音频文件，数量:', files.length);
+    try {
+      const fileArray = Array.from(files);
+      const response = await generationApi.uploadAudios(id, fileArray);
+      console.log('批量上传成功，响应数据:', response.data);
+      await loadProject();
+      addToast({
+        type: 'success',
+        message: `成功上传 ${fileArray.length} 个音频文件`,
+      });
+    } catch (error: any) {
+      console.error('批量上传音频失败 - 详细错误:', error);
+      console.error('错误响应:', error?.response);
+      const errorMsg = error?.response?.data?.detail || error?.message || '音频上传失败，请重试';
+      addToast({
+        type: 'error',
+        message: errorMsg,
+      });
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const handleDeleteUploadedAudios = async () => {
+    if (!id) return;
+    try {
+      await generationApi.deleteUploadedAudios(id);
+      await loadProject();
+      addToast({
+        type: 'success',
+        message: '已清空上传的音频',
+      });
+    } catch (error: any) {
+      console.error('清空音频失败:', error);
+      const errorMsg = error?.response?.data?.detail || error?.message || '清空音频失败';
+      addToast({
+        type: 'error',
+        message: errorMsg,
+      });
     }
   };
 
@@ -714,6 +848,145 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* 字幕上传 */}
+              <div className="border-t border-light-divider dark:border-dark-divider pt-6">
+                <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                  上传字幕
+                </label>
+                <div className="space-y-3">
+                  <input
+                    ref={subtitleFileRef}
+                    type="file"
+                    accept=".srt,.vtt,.lrc,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleUploadSubtitle(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  {project.subtitleFilePath ? (
+                    <div className="flex items-center gap-2 p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-500/20">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-success-600 dark:text-success-400">✓</span>
+                          <span className="font-medium text-light-text-primary dark:text-dark-text-primary">
+                            已上传字幕
+                          </span>
+                        </div>
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                          {project.subtitleSegments?.length || 0} 个字幕片段
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleDeleteSubtitle}
+                        className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
+                      >
+                        删除字幕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => subtitleFileRef.current?.click()}
+                      disabled={uploadingSubtitle}
+                      className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed w-full"
+                    >
+                      {uploadingSubtitle ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="animate-spin">⟳</span> 上传中...
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <span>📝</span> 上传字幕文件（支持 .srt, .vtt, .lrc, .txt）
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 音频上传 */}
+              <div className="border-t border-light-divider dark:border-dark-divider pt-6">
+                <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
+                  上传音频
+                </label>
+                <div className="space-y-3">
+                  <input
+                    ref={audioFileRef}
+                    type="file"
+                    accept=".wav,.mp3,.m4a"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        if (e.target.files.length === 1) {
+                          handleUploadAudio(e.target.files[0]);
+                        } else {
+                          handleUploadAudios(e.target.files);
+                        }
+                      }
+                    }}
+                  />
+                  {project.uploadedAudioFiles?.length > 0 ? (
+                    <div className="flex items-center gap-2 p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-500/20">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-success-600 dark:text-success-400">✓</span>
+                          <span className="font-medium text-light-text-primary dark:text-dark-text-primary">
+                            已上传音频
+                          </span>
+                        </div>
+                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                          {project.uploadedAudioFiles.length} 个音频文件
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleDeleteUploadedAudios}
+                        className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
+                      >
+                        清空上传
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => audioFileRef.current?.click()}
+                      disabled={uploadingAudio}
+                      className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed w-full"
+                    >
+                      {uploadingAudio ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="animate-spin">⟳</span> 上传中...
+                        </span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <span>🎵</span> 上传音频文件（支持 .wav, .mp3, .m4a，可多选）
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 提示 */}
+              <div className="bg-secondary-50 dark:bg-secondary-500/10 rounded-xl p-4 border border-secondary-200 dark:border-secondary-500/20">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-secondary-100 dark:bg-secondary-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-secondary-600 dark:text-secondary-400">💡</span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-1">
+                      支持两种方式输入文本和音频
+                    </h4>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                      方式1：后续在分镜编辑步骤中自动拆分文本并生成配音
+                    </p>
+                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
+                      方式2：点击上方按钮上传字幕文件和音频文件
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
