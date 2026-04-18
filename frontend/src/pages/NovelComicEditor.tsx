@@ -9,6 +9,7 @@ import {
   imagePromptApi,
   exportApi,
   sceneApi,
+  stylePromptsApi,
   type Project,
   type PromptTemplate,
   type PromptType,
@@ -18,6 +19,7 @@ import {
 } from '../services/api';
 import { TTS_VOICES } from '../constants/ttsVoices';
 import { WizardSteps, wizardStepDefinitions, type WizardStep } from '../components/project/WizardSteps';
+import { ProjectPromptManager } from '../components/ProjectPromptManager';
 import { useToast } from '../hooks/useToast';
 
 interface NovelComicEditorProps {
@@ -67,6 +69,17 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
   const audioFileRef = useRef<HTMLInputElement>(null);
   // 本地文本状态，避免每次输入都调用 API
   const [localSourceText, setLocalSourceText] = useState('');
+  // 项目提示词管理状态
+  const [showProjectPromptManager, setShowProjectPromptManager] = useState(false);
+  const [projectPromptManagerType, setProjectPromptManagerType] = useState<PromptType>('character_extraction');
+  // 角色编辑状态
+  const [tempCharacter, setTempCharacter] = useState<{ [charId: string]: Partial<Character> }>({});
+  const [savingCharacter, setSavingCharacter] = useState<string | null>(null);
+  // 角色测试生图状态
+  const [showCharacterTestImage, setShowCharacterTestImage] = useState<string | null>(null);
+  const [characterTestImagePrompt, setCharacterTestImagePrompt] = useState('');
+  const [characterTestImageUrl, setCharacterTestImageUrl] = useState<string | null>(null);
+  const [characterTestImageLoading, setCharacterTestImageLoading] = useState(false);
 
   useEffect(() => {
     setProject(initialProject);
@@ -113,6 +126,7 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
         // 确保新字段有默认值
         subtitleSegments: originalData.subtitleSegments ?? [],
         uploadedAudioFiles: originalData.uploadedAudioFiles ?? [],
+        projectLocalPromptTemplates: originalData.projectLocalPromptTemplates ?? [],
       };
       setProject(projectData);
       onProjectUpdate(projectData);
@@ -404,6 +418,84 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     } catch (error) {
       console.error('Failed to delete scene:', error);
     }
+  };
+
+  const handleTempCharacterChange = (charId: string, field: keyof Character, value: string) => {
+    setTempCharacter(prev => ({
+      ...prev,
+      [charId]: {
+        ...prev[charId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSaveCharacter = async (charId: string) => {
+    if (!id || !project) return;
+    const charData = tempCharacter[charId];
+    if (!charData) return;
+
+    setSavingCharacter(charId);
+    try {
+      const char = project.characters.find(c => c.id === charId);
+      if (char) {
+        await characterApi.update(id, charId, {
+          ...char,
+          ...charData
+        });
+        await loadProject();
+        setTempCharacter(prev => {
+          const next = { ...prev };
+          delete next[charId];
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save character:', error);
+    } finally {
+      setSavingCharacter(null);
+    }
+  };
+
+  const handleCharacterTestImage = async (charId: string) => {
+    const char = project.characters.find(c => c.id === charId);
+    if (!char) return;
+
+    // 使用 tempCharacter 中的值（如果正在编辑）或者 char 中的值
+    const currentCharData = tempCharacter[charId] || {};
+    const characterPrompt = currentCharData.characterPrompt ?? char.characterPrompt;
+    const negativePrompt = currentCharData.negativePrompt ?? char.negativePrompt;
+
+    // 组合提示词
+    let fullPrompt = characterPrompt || '';
+    if (project.stylePrompt) {
+      fullPrompt = fullPrompt ? `${fullPrompt}, ${project.stylePrompt}` : project.stylePrompt;
+    }
+
+    setCharacterTestImagePrompt(fullPrompt);
+    setCharacterTestImageUrl(null);
+    setShowCharacterTestImage(charId);
+  };
+
+  const handleGenerateCharacterTestImage = async () => {
+    if (!characterTestImagePrompt) return;
+    try {
+      setCharacterTestImageLoading(true);
+      setCharacterTestImageUrl(null);
+      const response = await stylePromptsApi.testImage(characterTestImagePrompt);
+      const url = stylePromptsApi.getTestImageUrl(response.data.filename);
+      setCharacterTestImageUrl(url);
+    } catch (error) {
+      console.error('Failed to generate test image:', error);
+      alert('生成图片失败: ' + (error as any)?.response?.data?.detail || (error as any)?.message);
+    } finally {
+      setCharacterTestImageLoading(false);
+    }
+  };
+
+  const handleCharacterTestImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.error('Image failed to load:', e);
+    alert('图片加载失败，请检查后端日志');
   };
 
   const handleStoryboardSceneChange = async (storyboardId: string, sceneId: string | null) => {
@@ -998,94 +1090,161 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">角色列表</h3>
-              <button
-                onClick={handleExtractCharacters}
-                disabled={extractingCharacters}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {extractingCharacters ? '提取中...' : '自动提取角色'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setProjectPromptManagerType('character_extraction');
+                    setShowProjectPromptManager(true);
+                  }}
+                  className="btn-secondary"
+                >
+                  管理提示词
+                </button>
+                <button
+                  onClick={handleExtractCharacters}
+                  disabled={extractingCharacters}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {extractingCharacters ? '提取中...' : '自动提取角色'}
+                </button>
+              </div>
             </div>
             <div className="space-y-4">
               {project.characters.map((char) => (
                 <div key={char.id} className="border border-light-border dark:border-dark-borderborder-light-border dark:border-dark-border rounded-lg p-4">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-semibold text-light-text-primary dark:text-dark-text-primary">{char.name}</h4>
-                    <button
-                      onClick={() => setEditingCharacterId(
-                        editingCharacterId === char.id ? null : char.id
-                      )}
-                      className="text-primary-500 text-sm hover:text-primary-600"
-                    >
-                      {editingCharacterId === char.id ? '收起' : '编辑声音'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingCharacterId(
+                          editingCharacterId === char.id ? null : char.id
+                        )}
+                        className="text-primary-500 text-sm hover:text-primary-600"
+                      >
+                        {editingCharacterId === char.id ? '收起' : '编辑'}
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{char.description}</p>
 
-                  {editingCharacterId === char.id && (
-                    <div className="mt-4 pt-4 border-t border-light-border dark:border-dark-border space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h5 className="font-medium text-sm text-light-text-primary dark:text-dark-text-primary">声音配置</h5>
+                  {editingCharacterId === char.id ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">角色描述</label>
+                        <textarea
+                          value={tempCharacter[char.id]?.description ?? char.description}
+                          onChange={(e) => handleTempCharacterChange(char.id, 'description', e.target.value)}
+                          className="input-field w-full"
+                          rows={2}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">角色提示词 (英文)</label>
+                        <textarea
+                          value={tempCharacter[char.id]?.characterPrompt ?? char.characterPrompt}
+                          onChange={(e) => handleTempCharacterChange(char.id, 'characterPrompt', e.target.value)}
+                          className="input-field w-full font-mono text-sm"
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">负面提示词 (英文)</label>
+                        <textarea
+                          value={tempCharacter[char.id]?.negativePrompt ?? char.negativePrompt}
+                          onChange={(e) => handleTempCharacterChange(char.id, 'negativePrompt', e.target.value)}
+                          className="input-field w-full font-mono text-sm"
+                          rows={2}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-light-border dark:border-dark-border">
                         <button
-                          onClick={() => handleSaveCharacterTts(char.id)}
-                          disabled={savingCharacterTts === char.id || !tempCharacterTts[char.id]}
-                          className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => handleCharacterTestImage(char.id)}
+                          className="btn-secondary text-sm"
                         >
-                          {savingCharacterTts === char.id ? '保存中...' : '保存'}
+                          🎨 测试生图
+                        </button>
+                        <button
+                          onClick={() => handleSaveCharacter(char.id)}
+                          disabled={savingCharacter === char.id}
+                          className={`btn-primary ${savingCharacter === char.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {savingCharacter === char.id ? '保存中...' : '保存'}
                         </button>
                       </div>
+                      {/* 声音配置 - 在编辑模式下也显示 */}
+                      <div className="pt-4 border-t border-light-border dark:border-dark-border space-y-4">
+                        <h5 className="font-medium text-sm text-light-text-primary dark:text-dark-text-primary">声音配置</h5>
+                        <div>
+                          <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">声音</label>
+                          <select
+                            value={tempCharacterTts[char.id]?.voice || char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural'}
+                            onChange={(e) => {
+                              handleTempCharacterTtsChange(char.id, 'voice', e.target.value);
+                            }}
+                            className="input-field w-full"
+                          >
+                            {TTS_VOICES.map((voice) => (
+                              <option key={voice.value} value={voice.value}>
+                                {voice.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">声音</label>
-                        <select
-                          value={tempCharacterTts[char.id]?.voice || char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural'}
-                          onChange={(e) => {
-                            handleTempCharacterTtsChange(char.id, 'voice', e.target.value);
-                          }}
-                          className="input-field w-full"
-                        >
-                          {TTS_VOICES.map((voice) => (
-                            <option key={voice.value} value={voice.value}>
-                              {voice.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        <div>
+                          <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                            语速: {(tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0).toFixed(1)}x
+                          </label>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2.0"
+                            step="0.1"
+                            value={tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0}
+                            onChange={(e) => {
+                              handleTempCharacterTtsChange(char.id, 'rate', parseFloat(e.target.value));
+                            }}
+                            className="w-full"
+                          />
+                        </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                          语速: {(tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0).toFixed(1)}x
-                        </label>
-                        <input
-                          type="range"
-                          min="0.5"
-                          max="2.0"
-                          step="0.1"
-                          value={tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0}
-                          onChange={(e) => {
-                            handleTempCharacterTtsChange(char.id, 'rate', parseFloat(e.target.value));
-                          }}
-                          className="w-full"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                          音调: {(tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0)}Hz
-                        </label>
-                        <input
-                          type="range"
-                          min="-100"
-                          max="100"
-                          step="1"
-                          value={tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0}
-                          onChange={(e) => {
-                            handleTempCharacterTtsChange(char.id, 'pitch', parseInt(e.target.value));
-                          }}
-                          className="w-full"
-                        />
+                        <div>
+                          <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
+                            音调: {(tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0)}Hz
+                          </label>
+                          <input
+                            type="range"
+                            min="-100"
+                            max="100"
+                            step="1"
+                            value={tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0}
+                            onChange={(e) => {
+                              handleTempCharacterTtsChange(char.id, 'pitch', parseInt(e.target.value));
+                            }}
+                            className="w-full"
+                          />
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleSaveCharacterTts(char.id)}
+                            disabled={savingCharacterTts === char.id || !tempCharacterTts[char.id]}
+                            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {savingCharacterTts === char.id ? '保存声音...' : '保存声音'}
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{char.description}</p>
+                      {char.characterPrompt && (
+                        <div className="mt-2">
+                          <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-mono truncate">
+                            提示词: {char.characterPrompt}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -1101,13 +1260,24 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">场景列表</h3>
-              <button
-                onClick={handleExtractScenes}
-                disabled={extractingScenes}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {extractingScenes ? '提取中...' : '自动提取场景'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setProjectPromptManagerType('scene_extraction');
+                    setShowProjectPromptManager(true);
+                  }}
+                  className="btn-secondary"
+                >
+                  管理提示词
+                </button>
+                <button
+                  onClick={handleExtractScenes}
+                  disabled={extractingScenes}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {extractingScenes ? '提取中...' : '自动提取场景'}
+                </button>
+              </div>
             </div>
             <div className="space-y-4">
               {(project.scenes || []).map((scene) => (
@@ -1602,6 +1772,85 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           </div>
         )}
       </div>
+
+      {/* 角色测试生图弹窗 */}
+      {showCharacterTestImage && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="card max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-light-divider dark:border-dark-divider flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg text-light-text-primary dark:text-dark-text-primary">
+                  角色测试生图
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowCharacterTestImage(null);
+                    setCharacterTestImageUrl(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              <div className="mb-4">
+                <label className="input-label">提示词</label>
+                <textarea
+                  value={characterTestImagePrompt}
+                  onChange={(e) => setCharacterTestImagePrompt(e.target.value)}
+                  className="input-field w-full h-24 resize-none"
+                />
+              </div>
+              {characterTestImageUrl && (
+                <div className="mb-4">
+                  <label className="input-label">生成结果</label>
+                  <div className="flex justify-center">
+                    <img
+                      src={characterTestImageUrl}
+                      alt="Test"
+                      className="max-w-full max-h-[60vh] w-auto h-auto rounded-lg"
+                      onError={handleCharacterTestImageError}
+                      key={characterTestImageUrl}
+                    />
+                  </div>
+                </div>
+              )}
+              {characterTestImageLoading && (
+                <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary">
+                  生成中...
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-light-divider dark:border-dark-divider flex gap-2 justify-end flex-shrink-0">
+              <button
+                onClick={() => {
+                  setShowCharacterTestImage(null);
+                  setCharacterTestImageUrl(null);
+                }}
+                className="btn-secondary"
+              >
+                关闭
+              </button>
+              <button
+                onClick={handleGenerateCharacterTestImage}
+                disabled={characterTestImageLoading || !characterTestImagePrompt.trim()}
+                className="btn-primary"
+              >
+                {characterTestImageLoading ? '生成中...' : '生成图片'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 项目提示词管理弹窗 */}
+      <ProjectPromptManager
+        isOpen={showProjectPromptManager}
+        onClose={() => setShowProjectPromptManager(false)}
+        projectId={id || ''}
+        initialType={projectPromptManagerType}
+      />
     </div>
   );
 };
