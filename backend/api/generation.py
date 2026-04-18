@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, UploadFile, File
 from typing import Dict, Any, Optional, Set, List
+from pydantic import BaseModel, Field
 import asyncio
 from pathlib import Path
 from PIL import Image
@@ -16,7 +17,8 @@ from models.schemas import (
     Project, GenerateImagesRequest, GenerateAudiosRequest,
     GenerationStatus, GenerationStatusResponse,
     SplitStoryboardRequest, GeneratePromptsRequest, GeneratePromptsResponse,
-    SubtitleSegment, TextSegment, AudioClip, ProjectType
+    SubtitleSegment, TextSegment, AudioClip, ProjectType,
+    ProjectPromptTemplate, PromptType
 )
 from core.storage import storage
 from core.llm import LLMClient
@@ -798,3 +800,149 @@ async def delete_uploaded_audios(project_id: str):
     project.uploadedAudioFiles = []
     storage.save_project(project)
     return {"success": True}
+
+
+# ===== 项目级提示词模板管理 =====
+
+class DuplicateTemplateRequest(BaseModel):
+    newName: str = Field(..., min_length=1, max_length=100)
+
+
+class CreateProjectPromptTemplateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = ""
+    type: PromptType
+    systemPrompt: str = ""
+    userPrompt: str = ""
+
+
+class UpdateProjectPromptTemplateRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    systemPrompt: Optional[str] = None
+    userPrompt: Optional[str] = None
+
+
+@router.get("/projects/{project_id}/prompt-templates", response_model=List[ProjectPromptTemplate])
+async def list_project_prompt_templates(project_id: str, type: Optional[PromptType] = Query(None)):
+    """获取项目的提示词模板列表"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    templates = project.projectLocalPromptTemplates or []
+    if type:
+        templates = [t for t in templates if t.type == type]
+    return templates
+
+
+@router.get("/projects/{project_id}/prompt-templates/{template_id}", response_model=ProjectPromptTemplate)
+async def get_project_prompt_template(project_id: str, template_id: str):
+    """获取项目的单个提示词模板"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    template = next((t for t in (project.projectLocalPromptTemplates or []) if t.id == template_id), None)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return template
+
+
+@router.post("/projects/{project_id}/prompt-templates", response_model=ProjectPromptTemplate)
+async def create_project_prompt_template(project_id: str, request: CreateProjectPromptTemplateRequest):
+    """创建项目提示词模板"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from datetime import datetime
+    template = ProjectPromptTemplate(
+        id=str(uuid.uuid4()),
+        name=request.name,
+        description=request.description,
+        type=request.type,
+        systemPrompt=request.systemPrompt,
+        userPrompt=request.userPrompt,
+        createdAt=datetime.now(),
+        updatedAt=datetime.now()
+    )
+
+    if project.projectLocalPromptTemplates is None:
+        project.projectLocalPromptTemplates = []
+    project.projectLocalPromptTemplates.append(template)
+    storage.save_project(project)
+    return template
+
+
+@router.put("/projects/{project_id}/prompt-templates/{template_id}", response_model=ProjectPromptTemplate)
+async def update_project_prompt_template(project_id: str, template_id: str, request: UpdateProjectPromptTemplateRequest):
+    """更新项目提示词模板"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    template = next((t for t in (project.projectLocalPromptTemplates or []) if t.id == template_id), None)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    from datetime import datetime
+    update_data = request.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(template, key, value)
+    template.updatedAt = datetime.now()
+
+    storage.save_project(project)
+    return template
+
+
+@router.delete("/projects/{project_id}/prompt-templates/{template_id}")
+async def delete_project_prompt_template(project_id: str, template_id: str):
+    """删除项目提示词模板"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project.projectLocalPromptTemplates:
+        project.projectLocalPromptTemplates = [
+            t for t in project.projectLocalPromptTemplates if t.id != template_id
+        ]
+
+    # 如果删除的模板正在被使用，清除引用
+    if project.projectPromptTemplates:
+        for prompt_type, tid in list(project.projectPromptTemplates.items()):
+            if tid == template_id:
+                del project.projectPromptTemplates[prompt_type]
+
+    storage.save_project(project)
+    return {"success": True}
+
+
+@router.post("/projects/{project_id}/prompt-templates/{template_id}/duplicate", response_model=ProjectPromptTemplate)
+async def duplicate_project_prompt_template(project_id: str, template_id: str, request: DuplicateTemplateRequest):
+    """复制项目提示词模板"""
+    project = storage.load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    template = next((t for t in (project.projectLocalPromptTemplates or []) if t.id == template_id), None)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    from datetime import datetime
+    new_template = ProjectPromptTemplate(
+        id=str(uuid.uuid4()),
+        name=request.newName,
+        description=template.description,
+        type=template.type,
+        systemPrompt=template.systemPrompt,
+        userPrompt=template.userPrompt,
+        createdAt=datetime.now(),
+        updatedAt=datetime.now()
+    )
+
+    if project.projectLocalPromptTemplates is None:
+        project.projectLocalPromptTemplates = []
+    project.projectLocalPromptTemplates.append(new_template)
+    storage.save_project(project)
+    return new_template

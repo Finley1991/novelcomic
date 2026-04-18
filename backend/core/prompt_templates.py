@@ -1126,9 +1126,52 @@ class PromptTemplateManager:
         project: Optional[Any] = None,
         global_settings: Optional[Any] = None
     ) -> PromptTemplate:
+        # 首先检查项目本地的提示词模板
+        if project:
+            if hasattr(project, 'projectLocalPromptTemplates') and project.projectLocalPromptTemplates:
+                # 查找类型匹配的本地模板，优先使用被选中的（通过 projectPromptTemplates 引用的）
+                if hasattr(project, 'projectPromptTemplates'):
+                    selected_template_id = project.projectPromptTemplates.get(prompt_type, "")
+                    if selected_template_id:
+                        selected_template = next(
+                            (t for t in project.projectLocalPromptTemplates if t.id == selected_template_id),
+                            None
+                        )
+                        if selected_template:
+                            # 转换为 PromptTemplate 格式
+                            return PromptTemplate(
+                                id=selected_template.id,
+                                name=selected_template.name,
+                                description=selected_template.description,
+                                type=selected_template.type,
+                                systemPrompt=selected_template.systemPrompt,
+                                userPrompt=selected_template.userPrompt,
+                                isPreset=False,
+                                createdAt=selected_template.createdAt,
+                                updatedAt=selected_template.updatedAt
+                            )
+                # 如果没有选中的本地模板，使用该类型的第一个本地模板
+                local_template = next(
+                    (t for t in project.projectLocalPromptTemplates if t.type == prompt_type),
+                    None
+                )
+                if local_template:
+                    # 转换为 PromptTemplate 格式
+                    return PromptTemplate(
+                        id=local_template.id,
+                        name=local_template.name,
+                        description=local_template.description,
+                        type=local_template.type,
+                        systemPrompt=local_template.systemPrompt,
+                        userPrompt=local_template.userPrompt,
+                        isPreset=False,
+                        createdAt=local_template.createdAt,
+                        updatedAt=local_template.updatedAt
+                    )
+
         template_id = ""
 
-        # 检查项目级模板（不管 useCustomPrompts，只要设置了就使用）
+        # 检查项目级模板引用（引用全局模板）
         if project:
             if hasattr(project, 'projectPromptTemplates'):
                 template_id = project.projectPromptTemplates.get(prompt_type, "")

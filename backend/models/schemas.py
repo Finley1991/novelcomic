@@ -221,6 +221,18 @@ class GenerationProgress(BaseModel):
     lastSavedAt: Optional[datetime] = None
 
 
+class ProjectPromptTemplate(BaseModel):
+    """项目级别的提示词模板"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str = ""
+    type: PromptType
+    systemPrompt: str = ""
+    userPrompt: str = ""
+    createdAt: datetime = Field(default_factory=datetime.now)
+    updatedAt: datetime = Field(default_factory=datetime.now)
+
+
 class Project(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -233,6 +245,8 @@ class Project(BaseModel):
     negativePrompt: str = "bad anatomy, bad hands, blurry"
     useCustomPrompts: bool = False
     projectPromptTemplates: Dict[PromptType, str] = Field(default_factory=dict)
+    # 项目级别的提示词模板列表
+    projectLocalPromptTemplates: List[ProjectPromptTemplate] = Field(default_factory=list)
     generationProgress: GenerationProgress = Field(default_factory=GenerationProgress)
     characters: List[Character] = Field(default_factory=list)
     scenes: List[Scene] = Field(default_factory=list)

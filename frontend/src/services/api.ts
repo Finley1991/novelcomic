@@ -272,6 +272,17 @@ export interface PromptTemplate {
   updatedAt: string;
 }
 
+export interface ProjectPromptTemplate {
+  id: string;
+  name: string;
+  description: string;
+  type: PromptType;
+  systemPrompt: string;
+  userPrompt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GenerationProgress {
   imagesCompleted: number;
   imagesTotal: number;
@@ -304,6 +315,7 @@ export interface Project {
   negativePrompt: string;
   useCustomPrompts: boolean;
   projectPromptTemplates: Partial<Record<PromptType, string>>;
+  projectLocalPromptTemplates: ProjectPromptTemplate[];
   generationProgress: GenerationProgress;
   characters: Character[];
   scenes: Scene[];
@@ -567,6 +579,20 @@ export const generationApi = {
     });
   },
   deleteUploadedAudios: (projectId: string) => api.delete(`/projects/${projectId}/audios`),
+  // 项目级提示词模板管理
+  listProjectPromptTemplates: (projectId: string, type?: PromptType) => api.get<ProjectPromptTemplate[]>(
+    `/projects/${projectId}/prompt-templates${type ? `?type=${type}` : ''}`
+  ),
+  getProjectPromptTemplate: (projectId: string, templateId: string) =>
+    api.get<ProjectPromptTemplate>(`/projects/${projectId}/prompt-templates/${templateId}`),
+  createProjectPromptTemplate: (projectId: string, data: Partial<ProjectPromptTemplate>) =>
+    api.post<ProjectPromptTemplate>(`/projects/${projectId}/prompt-templates`, data),
+  updateProjectPromptTemplate: (projectId: string, templateId: string, data: Partial<ProjectPromptTemplate>) =>
+    api.put<ProjectPromptTemplate>(`/projects/${projectId}/prompt-templates/${templateId}`, data),
+  deleteProjectPromptTemplate: (projectId: string, templateId: string) =>
+    api.delete(`/projects/${projectId}/prompt-templates/${templateId}`),
+  duplicateProjectPromptTemplate: (projectId: string, templateId: string, newName: string) =>
+    api.post<ProjectPromptTemplate>(`/projects/${projectId}/prompt-templates/${templateId}/duplicate`, { newName }),
 };
 
 export const exportApi = {
