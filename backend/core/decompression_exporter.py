@@ -343,7 +343,7 @@ class DecompressionJianyingExporter:
         current_start_us = 0
 
         # 先添加所有音频片段
-        for clip in audio_clips:
+        for clip_idx, clip in enumerate(audio_clips):
             clip_map = materials_map.get(clip.id, {})
 
             # 添加音频
@@ -375,8 +375,10 @@ class DecompressionJianyingExporter:
                 )
                 script.add_segment(audio_seg, "audio_track")
 
-                # 更新下一个片段的开始时间
+                # 更新下一个片段的开始时间，在片段之间添加1ms间隙防止重叠
                 current_start_us += use_duration_us
+                if clip_idx < len(audio_clips) - 1:
+                    current_start_us += 1000  # 添加1ms间隙
 
         total_audio_duration_us = current_start_us
 
@@ -393,13 +395,17 @@ class DecompressionJianyingExporter:
                 if duration_us <= 0:
                     continue
 
+                # 给字幕添加1ms的安全间隙，防止与音频片段重叠
+                safe_start_us = start_us + 1000
+                safe_duration_us = max(duration_us - 2000, 100000)  # 最少0.1秒
+
                 logger.info(f"字幕: {seg.text}")
-                logger.info(f"  开始时间: {start_us}us")
-                logger.info(f"  时长: {duration_us}us")
+                logger.info(f"  原始开始时间: {start_us}us, 安全开始时间: {safe_start_us}us")
+                logger.info(f"  原始时长: {duration_us}us, 安全时长: {safe_duration_us}us")
 
                 text_seg = draft.TextSegment(
                     seg.text,
-                    trange(start=start_us, duration=duration_us),
+                    trange(start=safe_start_us, duration=safe_duration_us),
                     font=FontType.新青年体,
                     style=text_style
                 )
