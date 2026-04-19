@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     comfyui_api_url: str = "http://8.222.174.34:8188"
     comfyui_timeout: int = 300
     comfyui_max_retries: int = 3
-    comfyui_concurrent_limit: int = 3
+    comfyui_concurrent_limit: int = 1
 
     ollama_api_url: str = "http://8.222.174.34:11434"
     ollama_model: str = "qwen3.5:9b"
