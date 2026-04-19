@@ -449,7 +449,10 @@ export interface ExportJianyingResponse {
 }
 
 export interface SplitStoryboardRequest {
+  split_mode: 'fixed' | 'ai';
   lines_per_storyboard: number;
+  auto_match_characters: boolean;
+  auto_match_scenes: boolean;
 }
 
 export interface GeneratePromptsRequest {
@@ -515,10 +518,8 @@ export const sceneApi = {
 };
 
 export const storyboardApi = {
-  split: (projectId: string, linesPerStoryboard?: number) =>
-    api.post(`/projects/${projectId}/storyboards/split`, {
-      lines_per_storyboard: linesPerStoryboard || 1
-    }),
+  split: (projectId: string, data: SplitStoryboardRequest) =>
+    api.post(`/projects/${projectId}/storyboards/split`, data),
   list: (projectId: string) =>
     api.get<Storyboard[]>(`/projects/${projectId}/storyboards`),
   update: (projectId: string, sbId: string, data: Partial<Storyboard>) =>
@@ -534,15 +535,19 @@ export const storyboardApi = {
 };
 
 export const generationApi = {
-  generateImage: (projectId: string, storyboardId: string) =>
+  generateImage: (projectId: string, storyboardId: string, forceRegenerate?: boolean) =>
     api.post(`/projects/${projectId}/generate/image`, null, {
-      params: { storyboard_id: storyboardId }
+      params: { storyboard_id: storyboardId, force_regenerate: forceRegenerate }
     }),
   generateImages: (projectId: string, storyboardIds?: string[], forceRegenerate?: boolean) =>
     api.post(`/projects/${projectId}/generate/images`, {
       storyboardIds,
       forceRegenerate
     }),
+  cancelGeneration: (projectId: string) =>
+    api.post(`/projects/${projectId}/generate/cancel`),
+  resetCancel: (projectId: string) =>
+    api.post(`/projects/${projectId}/generate/reset-cancel`),
   generateAudio: (projectId: string, storyboardId: string) =>
     api.post(`/projects/${projectId}/generate/audio`, null, {
       params: { storyboard_id: storyboardId }

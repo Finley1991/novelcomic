@@ -469,7 +469,10 @@ class GenerateAudiosRequest(BaseModel):
 
 
 class SplitStoryboardRequest(BaseModel):
-    lines_per_storyboard: int = Field(1, ge=1, le=3, description="每个分镜包含的行数(1-3)")
+    split_mode: str = Field("fixed", description="拆分模式: fixed=固定行数, ai=AI自动分镜")
+    lines_per_storyboard: int = Field(1, ge=1, description="每个分镜包含的行数(固定行数模式)")
+    auto_match_characters: bool = Field(True, description="是否自动匹配角色")
+    auto_match_scenes: bool = Field(True, description="是否自动匹配场景")
 
 
 class GeneratePromptsRequest(BaseModel):

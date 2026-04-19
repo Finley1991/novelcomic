@@ -86,5 +86,7 @@ export const wizardStepDefinitions: Omit<WizardStep, 'status'>[] = [
   { id: 1, label: '角色管理', icon: '2' },
   { id: 2, label: '场景管理', icon: '3' },
   { id: 3, label: '分镜编辑', icon: '4' },
-  { id: 4, label: '导出交付', icon: '5' },
+  { id: 4, label: '提示词推理', icon: '5' },
+  { id: 5, label: '图片生成', icon: '6' },
+  { id: 6, label: '导出交付', icon: '7' },
 ];

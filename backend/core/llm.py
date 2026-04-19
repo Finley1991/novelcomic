@@ -51,10 +51,11 @@ class LLMClient:
         self,
         novel_text: str,
         characters: List[Dict[str, Any]] = None,
+        scenes: List[Dict[str, Any]] = None,
         project: Optional[Any] = None,
         global_settings: Optional[Any] = None
     ) -> List[Dict[str, Any]]:
-        return await self._client.split_storyboard(novel_text, characters, project, global_settings)
+        return await self._client.split_storyboard(novel_text, characters, scenes, project, global_settings)
 
     async def generate_image_prompt(
         self,

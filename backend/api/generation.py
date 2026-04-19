@@ -30,24 +30,56 @@ router = APIRouter(prefix="/api", tags=["generation"])
 
 generation_tasks: Dict[str, Dict[str, Any]] = {}
 active_generations: Set[str] = set()
+# 全局取消标志字典：project_id -> cancelled (bool)
+image_generation_cancel_flags: Dict[str, bool] = {}
 
 _comfyui_semaphore = asyncio.Semaphore(settings.comfyui_concurrent_limit)
 _tts_semaphore = asyncio.Semaphore(settings.tts_concurrent_limit)
 
 async def generate_single_image(project_id: str, sb_id: str):
     key = f"{project_id}:{sb_id}"
+
+    # 先做所有预检查，避免过早添加到 active_generations
     if key in active_generations:
+        logger.info(f"Image generation already in progress for {key}, skipping")
         return
+
+    # 检查是否已取消
+    if image_generation_cancel_flags.get(project_id, False):
+        logger.info(f"Image generation cancelled for project {project_id}")
+        return
+
+    # 检查项目和分镜是否存在
+    project = storage.load_project(project_id)
+    if not project:
+        logger.warning(f"Project {project_id} not found")
+        return
+
+    storyboard = None
+    sb_index = 0
+    for idx, sb in enumerate(project.storyboards):
+        if sb.id == sb_id:
+            storyboard = sb
+            sb_index = idx
+            break
+
+    if not storyboard:
+        logger.warning(f"Storyboard {sb_id} not found in project {project_id}")
+        return
+
+    # 所有预检查通过，现在添加到 active_generations
     active_generations.add(key)
+    logger.info(f"Starting image generation for {key}, current status: {storyboard.imageStatus}")
 
     try:
         async with _comfyui_semaphore:
+            # 重新加载项目以确保状态最新
             project = storage.load_project(project_id)
             if not project:
+                logger.warning(f"Project {project_id} not found when starting generation")
                 return
 
             storyboard = None
-            sb_index = 0
             for idx, sb in enumerate(project.storyboards):
                 if sb.id == sb_id:
                     storyboard = sb
@@ -55,8 +87,10 @@ async def generate_single_image(project_id: str, sb_id: str):
                     break
 
             if not storyboard:
+                logger.warning(f"Storyboard {sb_id} not found when starting generation")
                 return
 
+            logger.info(f"Setting storyboard {sb_id} status to GENERATING")
             storyboard.imageStatus = GenerationStatus.GENERATING
             storage.save_project(project)
 
@@ -64,6 +98,7 @@ async def generate_single_image(project_id: str, sb_id: str):
             characters = [char_map[cid] for cid in storyboard.characterIds if cid in char_map]
 
             if not storyboard.imagePrompt:
+                logger.info(f"Generating image prompt for storyboard {sb_id}")
                 settings_obj = storage.load_global_settings()
                 llm_client = LLMClient(settings_obj)
                 surrounding_sbs = _get_surrounding_storyboards(project.storyboards, sb_index)
@@ -73,6 +108,7 @@ async def generate_single_image(project_id: str, sb_id: str):
                     surrounding_sbs,
                     global_settings=settings_obj
                 )
+                logger.info(f"Generated image prompt: {storyboard.imagePrompt[:100]}...")
 
             full_prompt = storyboard.imagePrompt
             for char in characters:
@@ -84,6 +120,7 @@ async def generate_single_image(project_id: str, sb_id: str):
                 if char.negativePrompt:
                     negative_prompt = f"{negative_prompt}, {char.negativePrompt}"
 
+            logger.info(f"Calling ComfyUI for storyboard {sb_id}")
             comfy_client = ComfyUIClient()
             img_data = await comfy_client.generate_image(
                 prompt=full_prompt,
@@ -91,12 +128,40 @@ async def generate_single_image(project_id: str, sb_id: str):
                 width=1024,
                 height=1024
             )
+            logger.info(f"Received image data from ComfyUI, size: {len(img_data) if img_data else 0} bytes")
 
             proj_dir = Path(settings.data_dir) / "projects" / project_id
             img_path = proj_dir / "images" / f"sb-{storyboard.index:03d}.png"
 
+            # 确保 images 目录存在
+            img_path.parent.mkdir(parents=True, exist_ok=True)
+
+            logger.info(f"Saving image to {img_path}")
             img = Image.open(BytesIO(img_data))
             img.save(img_path, "PNG")
+
+            # 验证文件是否保存成功
+            if not img_path.exists():
+                raise Exception(f"Image file not saved to {img_path}")
+
+            file_size = img_path.stat().st_size
+            logger.info(f"Image saved successfully, size: {file_size} bytes")
+
+            # 再次加载项目以确保数据一致性
+            project = storage.load_project(project_id)
+            if not project:
+                logger.warning(f"Project {project_id} not found when saving result")
+                return
+
+            storyboard = None
+            for sb in project.storyboards:
+                if sb.id == sb_id:
+                    storyboard = sb
+                    break
+
+            if not storyboard:
+                logger.warning(f"Storyboard {sb_id} not found when saving result")
+                return
 
             storyboard.imagePath = f"images/sb-{storyboard.index:03d}.png"
             storyboard.imageStatus = GenerationStatus.COMPLETED
@@ -104,17 +169,24 @@ async def generate_single_image(project_id: str, sb_id: str):
 
             project.generationProgress.imagesCompleted += 1
             storage.save_project(project)
+            logger.info(f"Successfully completed image generation for {key}")
 
     except Exception as e:
-        project = storage.load_project(project_id)
-        if project:
-            for sb in project.storyboards:
-                if sb.id == sb_id:
-                    sb.imageStatus = GenerationStatus.FAILED
-                    sb.imageError = str(e)
-            storage.save_project(project)
+        logger.error(f"Error generating image for {key}: {e}", exc_info=True)
+        try:
+            project = storage.load_project(project_id)
+            if project:
+                for sb in project.storyboards:
+                    if sb.id == sb_id:
+                        sb.imageStatus = GenerationStatus.FAILED
+                        sb.imageError = str(e)
+                storage.save_project(project)
+                logger.info(f"Set storyboard {sb_id} status to FAILED")
+        except Exception as e2:
+            logger.error(f"Failed to update status to FAILED: {e2}")
     finally:
         active_generations.discard(key)
+        logger.info(f"Removed {key} from active_generations")
 
 async def generate_single_audio(project_id: str, sb_id: str):
     key = f"{project_id}:{sb_id}:audio"
@@ -247,6 +319,11 @@ def _auto_associate_characters(scene_description: str, characters: list) -> list
     for char in characters:
         if char.name.lower() in scene_desc_lower:
             char_ids.append(char.id)
+            logger.info(f"Keyword matched character: {char.name} (ID: {char.id})")
+    if char_ids:
+        logger.info(f"Final matched character IDs: {char_ids}")
+    else:
+        logger.info(f"No characters matched in scene: {scene_description[:100]}...")
     return char_ids
 
 
@@ -290,7 +367,14 @@ async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
     if not project.sourceText or not project.sourceText.strip():
         raise HTTPException(status_code=400, detail="No source text available")
 
-    # 按行分割文本
+    if request.split_mode == "ai":
+        return await _split_storyboard_ai(project, request)
+    else:
+        return await _split_storyboard_fixed(project, request)
+
+
+async def _split_storyboard_fixed(project: Project, request: SplitStoryboardRequest):
+    """固定行数拆分模式"""
     lines = project.sourceText.split('\n')
     current_lines = []
     current_index = len(project.storyboards)
@@ -300,26 +384,24 @@ async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
     for line in lines:
         line = line.strip()
         if not line:
-            continue  # 跳过空行
+            continue
 
         current_lines.append(line)
 
         if len(current_lines) >= request.lines_per_storyboard:
-            # 凑够指定行数，创建分镜
             scene_desc = "\n".join(current_lines)
             storyboard = Storyboard(
                 index=current_index,
                 sceneDescription=scene_desc,
                 dialogue="",
                 narration="",
-                characterIds=_auto_associate_characters(scene_desc, project.characters),
-                sceneId=_auto_associate_scene(scene_desc, project.scenes)
+                characterIds=_auto_associate_characters(scene_desc, project.characters) if request.auto_match_characters else [],
+                sceneId=_auto_associate_scene(scene_desc, project.scenes) if request.auto_match_scenes else None
             )
             project.storyboards.append(storyboard)
             current_lines = []
             current_index += 1
 
-    # 处理剩余的行
     if current_lines:
         scene_desc = "\n".join(current_lines)
         storyboard = Storyboard(
@@ -327,8 +409,8 @@ async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
             sceneDescription=scene_desc,
             dialogue="",
             narration="",
-            characterIds=_auto_associate_characters(scene_desc, project.characters),
-            sceneId=_auto_associate_scene(scene_desc, project.scenes)
+            characterIds=_auto_associate_characters(scene_desc, project.characters) if request.auto_match_characters else [],
+            sceneId=_auto_associate_scene(scene_desc, project.scenes) if request.auto_match_scenes else None
         )
         project.storyboards.append(storyboard)
 
@@ -336,20 +418,103 @@ async def split_storyboard(project_id: str, request: SplitStoryboardRequest):
     project.generationProgress.audioTotal = len(project.storyboards)
     storage.save_project(project)
 
-    # 自动批量生成提示词
-    await _generate_prompts_for_project(project)
-
     return {"storyboards": project.storyboards}
+
+
+async def _split_storyboard_ai(project: Project, request: SplitStoryboardRequest):
+    """AI 自动分镜模式"""
+    try:
+        settings_obj = storage.load_global_settings()
+        llm_client = LLMClient(settings_obj)
+
+        char_dicts = [c.model_dump() for c in project.characters]
+        scene_dicts = [s.model_dump() for s in project.scenes]
+
+        storyboard_dicts = await llm_client.split_storyboard(
+            project.sourceText,
+            char_dicts,
+            scene_dicts,
+            project,
+            settings_obj
+        )
+
+        current_index = len(project.storyboards)
+
+        from models.schemas import Storyboard
+
+        # 创建角色名到ID的映射
+        char_name_to_id = {char.name.lower(): char.id for char in project.characters}
+
+        for sb_dict in storyboard_dicts:
+            storyboard = Storyboard(
+                index=current_index,
+                sceneDescription=sb_dict.get("sceneDescription", ""),
+                dialogue=sb_dict.get("dialogue", ""),
+                narration=sb_dict.get("narration", ""),
+                characterIds=[],
+                sceneId=None
+            )
+
+            if request.auto_match_characters:
+                # 优先使用 LLM 返回的 characterNames 字段
+                character_names = sb_dict.get("characterNames", [])
+                if character_names:
+                    # 从 LLM 返回的角色名匹配角色ID
+                    matched_ids = []
+                    for name in character_names:
+                        char_id = char_name_to_id.get(name.lower())
+                        if char_id and char_id not in matched_ids:
+                            matched_ids.append(char_id)
+                    storyboard.characterIds = matched_ids
+                    logger.info(f"Matched characters from LLM: {character_names} -> {matched_ids}")
+
+                # 如果 LLM 没有返回角色名或没有匹配到，使用关键词匹配作为后备
+                if not storyboard.characterIds:
+                    storyboard.characterIds = _auto_associate_characters(
+                        storyboard.sceneDescription,
+                        project.characters
+                    )
+                    if storyboard.characterIds:
+                        logger.info(f"Matched characters by keyword: {storyboard.characterIds}")
+
+            if request.auto_match_scenes:
+                storyboard.sceneId = _auto_associate_scene(
+                    storyboard.sceneDescription,
+                    project.scenes
+                )
+
+            project.storyboards.append(storyboard)
+            current_index += 1
+
+        project.generationProgress.imagesTotal = len(project.storyboards)
+        project.generationProgress.audioTotal = len(project.storyboards)
+        storage.save_project(project)
+
+        return {"storyboards": project.storyboards}
+    except Exception as e:
+        logger.error(f"AI storyboard split failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI分镜失败: {str(e)}")
 
 @router.post("/projects/{project_id}/generate/image")
 async def generate_image(
     project_id: str,
     storyboard_id: str = Query(..., description="Storyboard ID to generate"),
+    force_regenerate: bool = Query(False, description="Force regenerate even if already completed"),
     background_tasks: BackgroundTasks = None
 ):
     project = storage.load_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # 找到分镜并重置状态（如果需要）
+    storyboard = next((sb for sb in project.storyboards if sb.id == storyboard_id), None)
+    if storyboard:
+        if force_regenerate or storyboard.imageStatus in [GenerationStatus.PENDING, GenerationStatus.FAILED, GenerationStatus.COMPLETED]:
+            # 重置状态为 PENDING，以便 generate_single_image 可以处理
+            storyboard.imageStatus = GenerationStatus.PENDING
+            storyboard.imageError = None
+            storage.save_project(project)
+            logger.info(f"Reset storyboard {storyboard_id} status to PENDING for regeneration")
 
     if background_tasks:
         background_tasks.add_task(generate_single_image, project_id, storyboard_id)
@@ -946,3 +1111,20 @@ async def duplicate_project_prompt_template(project_id: str, template_id: str, r
     project.projectLocalPromptTemplates.append(new_template)
     storage.save_project(project)
     return new_template
+
+
+@router.post("/projects/{project_id}/generate/cancel")
+async def cancel_image_generation(project_id: str):
+    """取消图片生成"""
+    image_generation_cancel_flags[project_id] = True
+    logger.info(f"Cancel requested for project {project_id}")
+    return {"success": True, "message": "取消请求已发送"}
+
+
+@router.post("/projects/{project_id}/generate/reset-cancel")
+async def reset_cancel_flag(project_id: str):
+    """重置取消标志"""
+    if project_id in image_generation_cancel_flags:
+        del image_generation_cancel_flags[project_id]
+    logger.info(f"Cancel flag reset for project {project_id}")
+    return {"success": True}

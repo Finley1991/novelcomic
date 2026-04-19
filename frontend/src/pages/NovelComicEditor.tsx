@@ -20,6 +20,8 @@ import {
 import { TTS_VOICES } from '../constants/ttsVoices';
 import { WizardSteps, wizardStepDefinitions, type WizardStep } from '../components/project/WizardSteps';
 import { ProjectPromptManager } from '../components/ProjectPromptManager';
+import { StoryboardPromptInference } from '../components/StoryboardPromptInference';
+import { StoryboardImageGeneration } from '../components/StoryboardImageGeneration';
 import { useToast } from '../hooks/useToast';
 
 interface NovelComicEditorProps {
@@ -80,6 +82,11 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
   const [characterTestImagePrompt, setCharacterTestImagePrompt] = useState('');
   const [characterTestImageUrl, setCharacterTestImageUrl] = useState<string | null>(null);
   const [characterTestImageLoading, setCharacterTestImageLoading] = useState(false);
+  // 分镜拆分模式状态
+  const [splitMode, setSplitMode] = useState<'fixed' | 'ai'>('fixed');
+  const [customLinesPerStoryboard, setCustomLinesPerStoryboard] = useState(1);
+  const [autoMatchCharacters, setAutoMatchCharacters] = useState(true);
+  const [autoMatchScenes, setAutoMatchScenes] = useState(true);
 
   useEffect(() => {
     setProject(initialProject);
@@ -273,45 +280,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-  const handleUseTemplate = async (storyboardId: string, templateId: string) => {
-    if (!id || !project) return;
-    const storyboard = project.storyboards.find(sb => sb.id === storyboardId);
-    if (!storyboard) return;
-
-    try {
-      // Get character prompts for this storyboard
-      const characterPrompts = storyboard.characterIds
-        .map(charId => project.characters.find(c => c.id === charId)?.characterPrompt)
-        .filter(Boolean)
-        .join(', ');
-
-      const response = await imagePromptApi.renderTemplate(templateId, {
-        scene: storyboard.sceneDescription,
-        characterPrompts,
-        stylePrompt: project.stylePrompt,
-      });
-
-      // Update the prompt
-      const newValue = response.data.renderedPrompt;
-      setEditingPrompt(prev => ({ ...prev, [storyboardId]: newValue }));
-
-      // Save immediately
-      setSavingPrompt(storyboardId);
-      try {
-        await storyboardApi.update(id, storyboardId, { imagePrompt: newValue });
-        await loadProject();
-      } finally {
-        setSavingPrompt(null);
-        setEditingPrompt(prev => {
-          const next = { ...prev };
-          delete next[storyboardId];
-          return next;
-        });
-      }
-    } catch (error) {
-      console.error('Failed to use template:', error);
-    }
-  };
 
   const handleUpdateProjectPromptTemplate = async (type: PromptType, templateId: string) => {
     if (!id || !project) return;
@@ -340,6 +308,21 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
         images: response.data.images,
         audio: response.data.audio
       });
+
+      // 检查是否所有生成都完成了
+      const { images, audio } = response.data;
+      const imagesDone = !images || images.completed >= images.total;
+      const audioDone = !audio || audio.completed >= audio.total;
+
+      // 检查是否还有正在生成中的分镜
+      const hasGeneratingImages = project.storyboards.some(sb => sb.imageStatus === 'generating');
+      const hasGeneratingAudio = project.storyboards.some(sb => sb.audioStatus === 'generating');
+
+      if (imagesDone && audioDone && !hasGeneratingImages && !hasGeneratingAudio) {
+        console.log('All generation completed, stopping polling');
+        setPolling(false);
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Failed to check status:', error);
     }
@@ -521,193 +504,125 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
   const handleSplitStoryboard = async () => {
     if (!id || !project) return;
 
-    const initialStoryboardCount = project.storyboards.length;
     setSplittingStoryboards(true);
     setSplitProgress(0);
     setSplitStatusText('正在拆分剧本...');
 
-    let progressInterval: number | null = null;
-
     try {
-      // 先调用拆分 API
-      await storyboardApi.split(id, linesPerStoryboard);
+      await storyboardApi.split(id, {
+        split_mode: splitMode,
+        lines_per_storyboard: customLinesPerStoryboard,
+        auto_match_characters: autoMatchCharacters,
+        auto_match_scenes: autoMatchScenes,
+      });
 
-      // 开始轮询获取进度
-      let pollCount = 0;
-      const maxPolls = 300; // 最多轮询 5 分钟 (300 * 1秒)
-
-      progressInterval = window.setInterval(async () => {
-        pollCount++;
-        try {
-          const response = await projectApi.get(id);
-          const currentProject = response.data;
-          setProject(currentProject);
-          onProjectUpdate(currentProject);
-
-          const totalStoryboards = currentProject.storyboards.length;
-          const newStoryboards = totalStoryboards - initialStoryboardCount;
-
-          if (newStoryboards > 0) {
-            const storyboardsWithPrompts = currentProject.storyboards.filter(
-              (sb: any) => sb.imagePrompt && sb.imagePrompt.length > 0
-            ).length;
-
-            const promptsToGenerate = totalStoryboards - initialStoryboardCount;
-            const promptsGenerated = storyboardsWithPrompts - initialStoryboardCount;
-
-            if (promptsToGenerate > 0) {
-              const promptProgress = Math.min(100, Math.round((promptsGenerated / promptsToGenerate) * 80));
-              const splitProgress = Math.min(20, Math.round((newStoryboards / promptsToGenerate) * 20));
-
-              if (promptsGenerated > 0) {
-                setSplitStatusText(`正在生成提示词... (${promptsGenerated}/${promptsToGenerate})`);
-              } else {
-                setSplitStatusText(`正在拆分剧本... (${newStoryboards}/${promptsToGenerate})`);
-              }
-
-              setSplitProgress(splitProgress + promptProgress);
-
-              if (promptsGenerated >= promptsToGenerate) {
-                // 完成！
-                if (progressInterval) clearInterval(progressInterval);
-                setSplitProgress(100);
-                setSplitStatusText('完成！');
-                setTimeout(() => {
-                  setSplittingStoryboards(false);
-                  setSplitProgress(0);
-                  setSplitStatusText('');
-                }, 1000);
-              }
-            }
-          }
-
-          if (pollCount >= maxPolls) {
-            if (progressInterval) clearInterval(progressInterval);
-            setSplittingStoryboards(false);
-            setSplitProgress(0);
-            setSplitStatusText('');
-            alert('拆分超时，请稍后重试');
-          }
-        } catch (error) {
-          console.error('Polling error:', error);
-        }
+      setSplitProgress(100);
+      setSplitStatusText('完成！');
+      setTimeout(() => {
+        setSplittingStoryboards(false);
+        setSplitProgress(0);
+        setSplitStatusText('');
       }, 1000);
 
+      await loadProject();
     } catch (error) {
       console.error('Failed to split storyboard:', error);
       alert('拆分分镜失败，请检查控制台');
       setSplittingStoryboards(false);
       setSplitProgress(0);
       setSplitStatusText('');
-      if (progressInterval) clearInterval(progressInterval);
     }
   };
 
-  const handleGeneratePrompts = async () => {
+  // 提示词推理相关函数
+  const handleInferenceGeneratePrompts = async (storyboardIds?: string[]) => {
     if (!id || !project) return;
 
-    const storyboardsWithoutPrompts = project.storyboards.filter(sb => !sb.imagePrompt || sb.imagePrompt.length === 0);
-    if (storyboardsWithoutPrompts.length === 0) {
-      alert('所有分镜都已有提示词');
-      return;
-    }
-
     setGeneratingPrompts(true);
-    setSplitProgress(0);
-    setSplitStatusText('正在生成提示词...');
-
-    let progressInterval: number | null = null;
 
     try {
-      await storyboardApi.generatePrompts(id);
-
-      // 开始轮询获取进度
-      let pollCount = 0;
-      const maxPolls = 300;
-
-      progressInterval = window.setInterval(async () => {
-        pollCount++;
-        try {
-          const response = await projectApi.get(id);
-          const currentProject = response.data;
-          setProject(currentProject);
-          onProjectUpdate(currentProject);
-
-          const totalToGenerate = storyboardsWithoutPrompts.length;
-          const generated = currentProject.storyboards.filter(
-            (sb: any) => sb.imagePrompt && sb.imagePrompt.length > 0
-          ).length - (project.storyboards.length - totalToGenerate);
-
-          if (generated > 0) {
-            setSplitProgress(Math.min(100, Math.round((generated / totalToGenerate) * 100)));
-            setSplitStatusText(`正在生成提示词... (${generated}/${totalToGenerate})`);
-          }
-
-          if (generated >= totalToGenerate) {
-            if (progressInterval) clearInterval(progressInterval);
-            setSplitProgress(100);
-            setSplitStatusText('完成！');
-            setTimeout(() => {
-              setGeneratingPrompts(false);
-              setSplitProgress(0);
-              setSplitStatusText('');
-            }, 1000);
-          }
-
-          if (pollCount >= maxPolls) {
-            if (progressInterval) clearInterval(progressInterval);
-            setGeneratingPrompts(false);
-            setSplitProgress(0);
-            setSplitStatusText('');
-            alert('生成超时，请稍后重试');
-          }
-        } catch (error) {
-          console.error('Polling error:', error);
-        }
-      }, 1000);
-
+      await storyboardApi.generatePrompts(id, storyboardIds);
+      await loadProject();
     } catch (error) {
       console.error('Failed to generate prompts:', error);
       alert('生成提示词失败，请检查控制台');
+    } finally {
       setGeneratingPrompts(false);
-      setSplitProgress(0);
-      setSplitStatusText('');
-      if (progressInterval) clearInterval(progressInterval);
     }
   };
 
-  const handlePromptChange = (storyboardId: string, value: string) => {
-    setEditingPrompt(prev => ({ ...prev, [storyboardId]: value }));
-  };
-
-  const handlePromptSave = async (storyboardId: string) => {
+  const handleUpdatePrompt = async (storyboardId: string, prompt: string) => {
     if (!id) return;
-    const newValue = editingPrompt[storyboardId];
-    if (newValue === undefined) return;
-
     setSavingPrompt(storyboardId);
     try {
-      await storyboardApi.update(id, storyboardId, { imagePrompt: newValue });
+      await storyboardApi.update(id, storyboardId, { imagePrompt: prompt });
       await loadProject();
     } catch (error) {
-      console.error('Failed to save prompt:', error);
+      console.error('Failed to update prompt:', error);
     } finally {
       setSavingPrompt(null);
-      setEditingPrompt(prev => {
-        const next = { ...prev };
-        delete next[storyboardId];
-        return next;
-      });
     }
   };
 
-  const handleGenerateImages = async () => {
+  const handleEditPromptChange = (storyboardId: string, prompt: string) => {
+    setEditingPrompt(prev => ({ ...prev, [storyboardId]: prompt }));
+  };
+
+  // 图片生成相关函数
+  const handleGenerateImages = async (storyboardIds?: string[], forceRegenerate?: boolean) => {
     if (!id) return;
+    setLoading(true);
     try {
-      await generationApi.generateImages(id);
+      // 重置取消标志
+      await generationApi.resetCancel(id);
+      await generationApi.generateImages(id, storyboardIds, forceRegenerate);
       setPolling(true);
+      await loadProject();
     } catch (error) {
       console.error('Failed to generate images:', error);
+      alert('生成图片失败，请检查控制台');
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateSingleImage = async (storyboardId: string) => {
+    if (!id || !project) return;
+    try {
+      const storyboard = project.storyboards.find(sb => sb.id === storyboardId);
+      const forceRegenerate = storyboard?.imageStatus === 'completed';
+      await generationApi.generateImage(id, storyboardId, forceRegenerate);
+      // 只在还没有开始 polling 时才设置
+      if (!polling) {
+        setPolling(true);
+      }
+    } catch (error) {
+      console.error('Failed to generate image:', error);
+      alert('生成图片失败，请检查控制台');
+    }
+  };
+
+  const handleImageUseTemplate = async (storyboardId: string, templateId: string) => {
+    if (!id || !project) return;
+    const storyboard = project.storyboards.find(sb => sb.id === storyboardId);
+    if (!storyboard) return;
+
+    try {
+      const characterPrompts = storyboard.characterIds
+        .map(charId => project.characters.find(c => c.id === charId)?.characterPrompt)
+        .filter(Boolean)
+        .join(', ');
+
+      const response = await imagePromptApi.renderTemplate(templateId, {
+        scene: storyboard.sceneDescription,
+        characterPrompts,
+        stylePrompt: project.stylePrompt,
+      });
+
+      const newValue = response.data.renderedPrompt;
+      setEditingPrompt(prev => ({ ...prev, [storyboardId]: newValue }));
+      await handleUpdatePrompt(storyboardId, newValue);
+    } catch (error) {
+      console.error('Failed to use template:', error);
     }
   };
 
@@ -1348,41 +1263,73 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           </div>
         )}
 
-        {/* Step 3: 分镜编辑 (剧本拆分 + 图片生成 + 配音生成) */}
+        {/* Step 3: 分镜编辑 (剧本拆分 + 角色场景关联) */}
         {currentStep === 3 && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">分镜列表 ({project.storyboards.length})</h3>
               <div className="flex items-center gap-2">
+                {/* 分镜模式选择 */}
                 <select
-                  value={linesPerStoryboard}
-                  onChange={(e) => setLinesPerStoryboard(parseInt(e.target.value))}
-                  disabled={splittingStoryboards || generatingPrompts}
+                  value={splitMode}
+                  onChange={(e) => setSplitMode(e.target.value as 'fixed' | 'ai')}
+                  disabled={splittingStoryboards}
                   className="input-field text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value={1}>1行/分镜</option>
-                  <option value={2}>2行/分镜</option>
-                  <option value={3}>3行/分镜</option>
+                  <option value="fixed">固定行数</option>
+                  <option value="ai">AI自动分镜</option>
                 </select>
+
+                {/* 固定行数模式的行数选择 */}
+                {splitMode === 'fixed' && (
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={customLinesPerStoryboard}
+                    onChange={(e) => setCustomLinesPerStoryboard(parseInt(e.target.value) || 1)}
+                    disabled={splittingStoryboards}
+                    className="input-field text-sm w-20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    placeholder="行数"
+                  />
+                )}
+
+                {/* AI自动分镜的选项 */}
+                {splitMode === 'ai' && (
+                  <>
+                    <label className="flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={autoMatchCharacters}
+                        onChange={(e) => setAutoMatchCharacters(e.target.checked)}
+                        disabled={splittingStoryboards}
+                        className="rounded"
+                      />
+                      自动匹配角色
+                    </label>
+                    <label className="flex items-center gap-1 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={autoMatchScenes}
+                        onChange={(e) => setAutoMatchScenes(e.target.checked)}
+                        disabled={splittingStoryboards}
+                        className="rounded"
+                      />
+                      自动匹配场景
+                    </label>
+                  </>
+                )}
+
                 <button
                   onClick={handleSplitStoryboard}
-                  disabled={splittingStoryboards || generatingPrompts}
+                  disabled={splittingStoryboards}
                   className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {splittingStoryboards ? '正在拆分分镜...' : '自动拆分剧本'}
                 </button>
-                {project.storyboards.length > 0 && (
-                  <button
-                    onClick={handleGeneratePrompts}
-                    disabled={splittingStoryboards || generatingPrompts}
-                    className="bg-success-500 hover:bg-success-600 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {generatingPrompts ? '生成中...' : '批量生成提示词'}
-                  </button>
-                )}
               </div>
             </div>
-            {(splittingStoryboards || generatingPrompts) && (
+            {splittingStoryboards && (
               <div className="mb-4">
                 <div className="flex justify-between text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">
                   <span>{splitStatusText || '进度'}</span>
@@ -1390,15 +1337,15 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
-                    className={`h-3 rounded-full transition-all duration-300 ${generatingPrompts ? 'bg-green-500' : 'bg-blue-500'}`}
+                    className="bg-blue-500 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${splitProgress}%` }}
                   ></div>
                 </div>
               </div>
             )}
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="space-y-4 max-h-[700px] overflow-y-auto">
               {project.storyboards.map((sb) => (
-                <div key={sb.id} className="border border-light-border dark:border-dark-borderrounded-lg p-4">
+                <div key={sb.id} className="border border-light-border dark:border-dark-border rounded-lg p-4">
                   <div className="flex justify-between">
                     <span className="font-semibold">分镜 {sb.index + 1}</span>
                   </div>
@@ -1459,120 +1406,55 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
                       })}
                     </div>
                   </div>
-
-                  <div className="mt-3 pt-3 border-t">
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">画图提示词</label>
-                      <div className="flex items-center gap-2">
-                        {imagePromptTemplates.length > 0 && (
-                          <select
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleUseTemplate(sb.id, e.target.value);
-                                e.target.value = '';
-                              }
-                            }}
-                            value=""
-                            className="text-xs border rounded px-2 py-1"
-                          >
-                            <option value="">使用模板...</option>
-                            {imagePromptTemplates.map((tpl) => (
-                              <option key={tpl.id} value={tpl.id}>
-                                {tpl.name} {tpl.isPreset ? '(预设)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        {savingPrompt === sb.id && (
-                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">保存中...</span>
-                        )}
-                        <button
-                          onClick={() => setExpandedPrompt(
-                            expandedPrompt === sb.id ? null : sb.id
-                          )}
-                          className="text-xs text-blue-500 hover:text-blue-600"
-                        >
-                          {expandedPrompt === sb.id ? '收起' : '展开'}
-                        </button>
-                      </div>
-                    </div>
-                    {expandedPrompt === sb.id ? (
-                      <textarea
-                        value={editingPrompt[sb.id] ?? sb.imagePrompt ?? ''}
-                        onChange={(e) => handlePromptChange(sb.id, e.target.value)}
-                        onBlur={() => handlePromptSave(sb.id)}
-                        placeholder="AI 生成的画图提示词将显示在这里..."
-                        className="input-field w-full text-sm font-mono disabled:opacity-50"
-                        rows={4}
-                        disabled={savingPrompt === sb.id}
-                      />
-                    ) : (
-                      sb.imagePrompt && (
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{sb.imagePrompt}</p>
-                      )
-                    )}
-                  </div>
                 </div>
               ))}
               {project.storyboards.length === 0 && (
                 <p className="text-light-text-secondary dark:text-dark-text-secondary">还没有分镜，点击上方按钮自动拆分</p>
               )}
             </div>
+          </div>
+        )}
 
-            {/* 图片生成部分 */}
-            {project.storyboards.length > 0 && (
-              <div className="mt-8 pt-8 border-t border-light-border dark:border-dark-border">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">图片生成</h3>
-                  <button
-                    onClick={handleGenerateImages}
-                    disabled={polling}
-                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {polling ? '生成中...' : '批量生成图片'}
-                  </button>
-                </div>
-                {polling && generationStatus?.images && generationStatus.images.total > 0 && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                      <span>图片生成进度</span>
-                      <span>{generationStatus.images.completed}/{generationStatus.images.total}</span>
-                    </div>
-                    <div className="w-full bg-light-divider dark:bg-dark-divider rounded-full h-3">
-                      <div
-                        className="bg-primary-500 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.round((generationStatus.images.completed / generationStatus.images.total) * 100)}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {project.storyboards.map((sb) => (
-                    <div key={sb.id} className="border border-light-border dark:border-dark-borderborder-light-border dark:border-dark-border rounded-lg p-2">
-                      <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-1">分镜 {sb.index + 1}</div>
-                      {sb.imageStatus === 'completed' && sb.imagePath ? (
-                        <img
-                          src={`/data/projects/${id}/${sb.imagePath}`}
-                          alt=""
-                          className="w-full h-24 sm:h-32 object-cover rounded"
-                        />
-                      ) : (
-                        <div className="w-full h-24 sm:h-32 bg-light-divider dark:bg-dark-divider rounded flex items-center justify-center">
-                          <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                            {sb.imageStatus === 'generating' ? '生成中...' :
-                             sb.imageStatus === 'failed' ? '失败' : '待生成'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Step 4: 提示词推理 */}
+        {currentStep === 4 && (
+          <StoryboardPromptInference
+            projectId={id || ''}
+            storyboards={project.storyboards}
+            characters={project.characters}
+            scenes={project.scenes}
+            onGeneratePrompts={handleInferenceGeneratePrompts}
+            generatingPrompts={generatingPrompts}
+            onUpdatePrompt={handleUpdatePrompt}
+            savingPrompt={savingPrompt}
+            editingPrompt={editingPrompt}
+            onEditPromptChange={handleEditPromptChange}
+          />
+        )}
 
+        {/* Step 5: 图片生成 */}
+        {currentStep === 5 && (
+          <StoryboardImageGeneration
+            projectId={id || ''}
+            storyboards={project.storyboards}
+            characters={project.characters}
+            scenes={project.scenes}
+            imagePromptTemplates={imagePromptTemplates}
+            onGenerateImages={handleGenerateImages}
+            onGenerateSingleImage={handleGenerateSingleImage}
+            onUseTemplate={handleImageUseTemplate}
+            generating={loading || polling}
+            generationStatus={generationStatus?.images}
+            polling={polling}
+            stylePrompt={project.stylePrompt || ''}
+          />
+        )}
+
+        {/* Step 6: 导出交付 */}
+        {currentStep === 6 && (
+          <div>
             {/* 配音生成部分 */}
             {project.storyboards.length > 0 && (
-              <div className="mt-8 pt-8 border-t border-light-border dark:border-dark-border">
+              <div className="mb-8">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
                   <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">配音生成</h3>
                   <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -1623,7 +1505,7 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
                 )}
                 <div className="space-y-4 max-h-[600px] overflow-y-auto">
                   {project.storyboards.map((sb) => (
-                    <div key={sb.id} className="border border-light-border dark:border-dark-borderborder-light-border dark:border-dark-border rounded-lg p-4">
+                    <div key={sb.id} className="border border-light-border dark:border-dark-border rounded-lg p-4">
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-semibold text-light-text-primary dark:text-dark-text-primary">分镜 {sb.index + 1}</span>
                         <div className="flex items-center gap-2">
@@ -1694,79 +1576,77 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
                 </div>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Step 4: 导出交付 */}
-        {currentStep === 4 && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">导出剪映草稿</h3>
-              <button
-                onClick={handleExportJianying}
-                disabled={exportingJianying}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {exportingJianying ? '导出中...' : '导出到剪映'}
-              </button>
-            </div>
-
-            {exportResult && (
-              <div className={`mb-6 p-4 rounded-md ${exportResult.success ? 'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300' : 'bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-300'}`}>
-                <pre className="whitespace-pre-wrap text-sm">{exportResult.message}</pre>
+            {/* 导出剪映部分 */}
+            <div className="border-t border-light-border dark:border-dark-border pt-8">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">导出剪映草稿</h3>
+                <button
+                  onClick={handleExportJianying}
+                  disabled={exportingJianying}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {exportingJianying ? '导出中...' : '导出到剪映'}
+                </button>
               </div>
-            )}
 
-            <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-6">
-              <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">导出说明</h4>
-              <ul className="space-y-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                <li>• 将项目中的所有图片和音频导出为剪映草稿</li>
-                <li>• 图片和音频会自动放置在对应的轨道上</li>
-                <li>• 每个分镜的时长根据音频长度自动设置</li>
-                <li>• 导出前请确保已配置剪映草稿保存路径（在设置页面）</li>
-                <li>• 导出后可以在剪映中打开草稿进行进一步编辑</li>
-              </ul>
-            </div>
+              {exportResult && (
+                <div className={`mb-6 p-4 rounded-md ${exportResult.success ? 'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300' : 'bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-300'}`}>
+                  <pre className="whitespace-pre-wrap text-sm">{exportResult.message}</pre>
+                </div>
+              )}
 
-            <div className="mt-6">
-              <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">项目预览 ({project.storyboards.length} 个分镜)</h4>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {project.storyboards.map((sb) => (
-                  <div key={sb.id} className="flex items-center gap-4 border border-light-border dark:border-dark-border rounded-lg p-3">
-                    <div className="w-24 h-16 bg-light-divider dark:bg-dark-divider rounded flex items-center justify-center flex-shrink-0">
-                      {sb.imageStatus === 'completed' && sb.imagePath ? (
-                        <img
-                          src={`/data/projects/${id}/${sb.imagePath}`}
-                          alt=""
-                          className="w-full h-full object-cover rounded"
-                        />
-                      ) : (
-                        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                          {sb.imageStatus === 'generating' ? '生成中' :
-                           sb.imageStatus === 'failed' ? '失败' : '无图'}
+              <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-6">
+                <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">导出说明</h4>
+                <ul className="space-y-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
+                  <li>• 将项目中的所有图片和音频导出为剪映草稿</li>
+                  <li>• 图片和音频会自动放置在对应的轨道上</li>
+                  <li>• 每个分镜的时长根据音频长度自动设置</li>
+                  <li>• 导出前请确保已配置剪映草稿保存路径（在设置页面）</li>
+                  <li>• 导出后可以在剪映中打开草稿进行进一步编辑</li>
+                </ul>
+              </div>
+
+              <div className="mt-6">
+                <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">项目预览 ({project.storyboards.length} 个分镜)</h4>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {project.storyboards.map((sb) => (
+                    <div key={sb.id} className="flex items-center gap-4 border border-light-border dark:border-dark-border rounded-lg p-3">
+                      <div className="w-24 h-16 bg-light-divider dark:bg-dark-divider rounded flex items-center justify-center flex-shrink-0">
+                        {sb.imageStatus === 'completed' && sb.imagePath ? (
+                          <img
+                            src={`/data/projects/${id}/${sb.imagePath}`}
+                            alt=""
+                            className="w-full h-full object-cover rounded"
+                          />
+                        ) : (
+                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            {sb.imageStatus === 'generating' ? '生成中' :
+                             sb.imageStatus === 'failed' ? '失败' : '无图'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-light-text-primary dark:text-dark-text-primary">分镜 {sb.index + 1}</div>
+                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{sb.sceneDescription}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {sb.audioStatus === 'completed' && sb.audioDuration > 0 && (
+                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            {sb.audioDuration.toFixed(1)}s
+                          </span>
+                        )}
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          sb.audioStatus === 'completed' && sb.imageStatus === 'completed'
+                            ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-300'
+                            : 'bg-warning-100 text-warning-700 dark:bg-warning-500/10 dark:text-warning-300'
+                        }`}>
+                          {sb.audioStatus === 'completed' && sb.imageStatus === 'completed' ? '就绪' : '需完成'}
                         </span>
-                      )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-light-text-primary dark:text-dark-text-primary">分镜 {sb.index + 1}</div>
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{sb.sceneDescription}</p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {sb.audioStatus === 'completed' && sb.audioDuration > 0 && (
-                        <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                          {sb.audioDuration.toFixed(1)}s
-                        </span>
-                      )}
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        sb.audioStatus === 'completed' && sb.imageStatus === 'completed'
-                          ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-300'
-                          : 'bg-warning-100 text-warning-700 dark:bg-warning-500/10 dark:text-warning-300'
-                      }`}>
-                        {sb.audioStatus === 'completed' && sb.imageStatus === 'completed' ? '就绪' : '需完成'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>

@@ -204,27 +204,42 @@ def _get_preset_templates() -> List[PromptTemplate]:
         PromptTemplate(
             id="preset_storyboard_split_1",
             name="通用版",
-            description="通用的分镜拆分模板（按行分割，仅用于历史参考）",
+            description="按情节合理拆分小说文本，sceneDescription使用原文20-40字",
             type=PromptType.STORYBOARD_SPLIT,
-            systemPrompt="你是一个专业的漫剧分镜师。将小说拆分为多个分镜。",
-            userPrompt="""{characters}
+            systemPrompt="""你是一个专业的文学编辑。将小说文本按情节拆分为多个片段。
 
-将以下小说文本拆分为多个分镜。每个分镜应该有3-5秒的画面时长。
+【重要要求】
+1. sceneDescription 必须直接使用原文片段，不要修改或重新描述
+2. sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+3. 尽量保证内容的连贯性和完整性
+4. 按自然的情节断点拆分
+5. 不需要 dialogue 和 narration 字段
+6. characterNames 必须包含该分镜中出现的所有角色
+7. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称""",
+            userPrompt="""{characters}
+{scenes}
+
+将以下小说文本按情节拆分为多个片段。
+
+重要要求：
+- sceneDescription 必须直接使用原文片段，不要修改或重新描述
+- sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+- 尽量保证内容的连贯性和完整性
+- 按自然的情节断点拆分
+- 不需要 dialogue 和 narration 字段
+- characterNames 必须包含该分镜中出现的所有角色
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称
 
 对每个分镜提供：
 1. index: 序号（从{current_index}开始）
-2. sceneDescription: 画面描述（详细的视觉描述，用于AI绘画）
-3. dialogue: 角色台词（如果有）
-4. narration: 旁白（如果有）
-5. characterNames: 出现的角色名数组
+2. sceneDescription: 原文片段（20-40字，直接复制原文）
+3. characterNames: 出现的角色名数组（代词请替换为具体角色名）
 
 仅返回JSON数组，格式如下：
 [
   {{
     "index": 0,
-    "sceneDescription": "画面描述...",
-    "dialogue": "台词",
-    "narration": "旁白",
+    "sceneDescription": "原文片段（20-40字）...",
     "characterNames": ["角色1", "角色2"]
   }}
 ]
@@ -238,33 +253,43 @@ def _get_preset_templates() -> List[PromptTemplate]:
         ),
         PromptTemplate(
             id="preset_storyboard_split_2",
-            name="动漫风格",
-            description="动漫风格分镜拆分（按行分割，仅用于历史参考）",
+            name="通用版2",
+            description="按情节合理拆分小说文本，sceneDescription使用原文20-40字",
             type=PromptType.STORYBOARD_SPLIT,
-            systemPrompt="你是一个专业的动漫分镜师。将小说拆分为适合动漫表现的分镜。",
-            userPrompt="""{characters}
+            systemPrompt="""你是一个专业的文学编辑。将小说文本按情节拆分为多个片段。
 
-将以下小说文本拆分为多个动漫分镜。每个分镜应该有3-5秒的画面时长。
-注重：
-- 画面的视觉冲击力
-- 角色表情特写
-- 动漫典型构图（低角度、大特写、动态模糊等）
-- 动态感和表现力
+【重要要求】
+1. sceneDescription 必须直接使用原文片段，不要修改或重新描述
+2. sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+3. 尽量保证内容的连贯性和完整性
+4. 按自然的情节断点拆分
+5. 不需要 dialogue 和 narration 字段
+6. characterNames 必须包含该分镜中出现的所有角色
+7. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称""",
+            userPrompt="""{characters}
+{scenes}
+
+将以下小说文本按情节拆分为多个片段。
+
+重要要求：
+- sceneDescription 必须直接使用原文片段，不要修改或重新描述
+- sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+- 尽量保证内容的连贯性和完整性
+- 按自然的情节断点拆分
+- 不需要 dialogue 和 narration 字段
+- characterNames 必须包含该分镜中出现的所有角色
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称
 
 对每个分镜提供：
 1. index: 序号（从{current_index}开始）
-2. sceneDescription: 画面描述（详细的动漫风格视觉描述）
-3. dialogue: 角色台词（如果有）
-4. narration: 旁白（如果有）
-5. characterNames: 出现的角色名数组
+2. sceneDescription: 原文片段（20-40字，直接复制原文）
+3. characterNames: 出现的角色名数组（代词请替换为具体角色名）
 
 仅返回JSON数组，格式如下：
 [
   {{
     "index": 0,
-    "sceneDescription": "画面描述...",
-    "dialogue": "台词",
-    "narration": "旁白",
+    "sceneDescription": "原文片段（20-40字）...",
     "characterNames": ["角色1", "角色2"]
   }}
 ]
@@ -278,33 +303,43 @@ def _get_preset_templates() -> List[PromptTemplate]:
         ),
         PromptTemplate(
             id="preset_storyboard_split_3",
-            name="写实风格",
-            description="写实风格分镜拆分（按行分割，仅用于历史参考）",
+            name="通用版3",
+            description="按情节合理拆分小说文本，sceneDescription使用原文20-40字",
             type=PromptType.STORYBOARD_SPLIT,
-            systemPrompt="你是一个专业的电影分镜师。将小说拆分为适合电影表现的分镜。",
-            userPrompt="""{characters}
+            systemPrompt="""你是一个专业的文学编辑。将小说文本按情节拆分为多个片段。
 
-将以下小说文本拆分为多个电影分镜。每个分镜应该有3-5秒的画面时长。
-注重：
-- 真实场景描写
-- 光影效果（cinematic lighting）
-- 摄影构图（三分法、景深等）
-- 真实的镜头语言
+【重要要求】
+1. sceneDescription 必须直接使用原文片段，不要修改或重新描述
+2. sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+3. 尽量保证内容的连贯性和完整性
+4. 按自然的情节断点拆分
+5. 不需要 dialogue 和 narration 字段
+6. characterNames 必须包含该分镜中出现的所有角色
+7. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称""",
+            userPrompt="""{characters}
+{scenes}
+
+将以下小说文本按情节拆分为多个片段。
+
+重要要求：
+- sceneDescription 必须直接使用原文片段，不要修改或重新描述
+- sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+- 尽量保证内容的连贯性和完整性
+- 按自然的情节断点拆分
+- 不需要 dialogue 和 narration 字段
+- characterNames 必须包含该分镜中出现的所有角色
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称
 
 对每个分镜提供：
 1. index: 序号（从{current_index}开始）
-2. sceneDescription: 画面描述（详细的电影风格视觉描述）
-3. dialogue: 角色台词（如果有）
-4. narration: 旁白（如果有）
-5. characterNames: 出现的角色名数组
+2. sceneDescription: 原文片段（20-40字，直接复制原文）
+3. characterNames: 出现的角色名数组（代词请替换为具体角色名）
 
 仅返回JSON数组，格式如下：
 [
   {{
     "index": 0,
-    "sceneDescription": "画面描述...",
-    "dialogue": "台词",
-    "narration": "旁白",
+    "sceneDescription": "原文片段（20-40字）...",
     "characterNames": ["角色1", "角色2"]
   }}
 ]
@@ -318,33 +353,43 @@ def _get_preset_templates() -> List[PromptTemplate]:
         ),
         PromptTemplate(
             id="preset_storyboard_split_4",
-            name="古风/武侠",
-            description="古风武侠风格分镜拆分（按行分割，仅用于历史参考）",
+            name="通用版4",
+            description="按情节合理拆分小说文本，sceneDescription使用原文20-40字",
             type=PromptType.STORYBOARD_SPLIT,
-            systemPrompt="你是一个专业的武侠剧分镜师。将小说拆分为适合武侠/古风表现的分镜。",
-            userPrompt="""{characters}
+            systemPrompt="""你是一个专业的文学编辑。将小说文本按情节拆分为多个片段。
 
-将以下小说文本拆分为多个武侠/古风分镜。每个分镜应该有3-5秒的画面时长。
-注重：
-- 古风场景（古建筑、山水、园林等）
-- 武侠动作描写
-- 古风构图和意境
-- 武器和招式的视觉表现
+【重要要求】
+1. sceneDescription 必须直接使用原文片段，不要修改或重新描述
+2. sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+3. 尽量保证内容的连贯性和完整性
+4. 按自然的情节断点拆分
+5. 不需要 dialogue 和 narration 字段
+6. characterNames 必须包含该分镜中出现的所有角色
+7. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称""",
+            userPrompt="""{characters}
+{scenes}
+
+将以下小说文本按情节拆分为多个片段。
+
+重要要求：
+- sceneDescription 必须直接使用原文片段，不要修改或重新描述
+- sceneDescription 的字数必须控制在 20-40 字之间（汉字）
+- 尽量保证内容的连贯性和完整性
+- 按自然的情节断点拆分
+- 不需要 dialogue 和 narration 字段
+- characterNames 必须包含该分镜中出现的所有角色
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称
 
 对每个分镜提供：
 1. index: 序号（从{current_index}开始）
-2. sceneDescription: 画面描述（详细的古风/武侠风格视觉描述）
-3. dialogue: 角色台词（如果有）
-4. narration: 旁白（如果有）
-5. characterNames: 出现的角色名数组
+2. sceneDescription: 原文片段（20-40字，直接复制原文）
+3. characterNames: 出现的角色名数组（代词请替换为具体角色名）
 
 仅返回JSON数组，格式如下：
 [
   {{
     "index": 0,
-    "sceneDescription": "画面描述...",
-    "dialogue": "台词",
-    "narration": "旁白",
+    "sceneDescription": "原文片段（20-40字）...",
     "characterNames": ["角色1", "角色2"]
   }}
 ]
@@ -360,42 +405,46 @@ def _get_preset_templates() -> List[PromptTemplate]:
         # ========== 图像生成预设 ==========
         PromptTemplate(
             id="preset_image_prompt_1",
-            name="通用增强版",
-            description="增强版图像生成提示词，结合分镜、角色、场景和上下文信息",
+            name="校园清新漫画",
+            description="校园清新风格，明亮柔和，适合青春校园故事",
             type=PromptType.IMAGE_PROMPT,
-            systemPrompt="""你是一位专业的AI绘画提示词工程师（Prompt Engineer）。
-你的任务是将画面信息转换为高质量的Stable Diffusion英文提示词。
+            systemPrompt="""你是一位专业的AI绘画提示词工程师。
+你的任务是将场景信息转换为高质量的中文详细描述格式的提示词。
 
-【提示词工程原则】
+【重要规则 - 禁止文字】
+- 图像中绝对不能出现任何文字
+- 不能有标识、字母、单词、字幕、有可见文字的书籍
+- 如果应该有标识，让它模糊或不可读
+- 最终图像中不能有任何形式的文字
 
-1. 结构清晰
-   - 主体在前：先描述画面核心内容
-   - 风格其次：艺术风格、画面质量
-   - 细节在后：光影、构图、氛围
+【风格 - 校园清新漫画】
+- 动漫风格，漫画插画
+- 明亮的光线，柔和的阴影
+- 柔和的色彩，鲜艳但温柔
+- 干净的线条，美丽细致的眼睛
+- 适用时穿着校服
+- 灵感来自校园恋爱漫画
 
-2. 描述具体
-   - 避免模糊词汇（如"美丽"、"好看"）
-   - 使用精确描述（如"金色长发"、"蓝色眼睛"）
-   - 包含材质、质感、光影信息
+【光线】
+- 柔和的光线，日光，窗户光
+- 明亮的教室，放学后的夕阳
+- 体积光，光线
 
-3. 英文术语准确
-   - 使用Stable Diffusion社区常用词汇
-   - 避免中式英语
-   - 参考Danbooru标签风格
+【构图】
+- 中景，全身，特写
+- 看向观众，动态姿势
+- 三分法则
 
-4. 质量词必备
-   - masterpiece, best quality, ultra detailed
-   - 根据风格添加相应的质量词汇
+【氛围】
+- 温暖的氛围，青春活力，宁静，温柔
 
-【提示词结构模板】
-[主体描述], [角色特征], [场景环境], [艺术风格], [画面质量], [光影效果], [构图视角], [氛围情感]
-
-【重要提醒】
-- 只输出提示词内容，不要任何解释
-- 使用英文
-- 用逗号分隔词汇
-- 不要使用Markdown格式""",
-            userPrompt="""请根据以下信息生成高质量的Stable Diffusion英文提示词。
+【重要】
+- 使用纯中文详细描述
+- 像讲故事一样描述场景
+- 使用描述性、流畅的语言
+- 只使用中文
+- 图像中不能有文字""",
+            userPrompt="""根据以下信息生成高质量的中文详细描述格式的提示词。
 
 【角色信息】
 {characters}
@@ -406,80 +455,76 @@ def _get_preset_templates() -> List[PromptTemplate]:
 【风格提示词】
 {style_prompt}
 
-【当前分镜描述】
+【当前分镜】
 {scene_description}
 
 【上下文分镜】
 {context_storyboards}
 
-请生成详细的Stable Diffusion提示词。要求：
-1. 先描述当前分镜的核心内容
-2. 融入角色的视觉特征
-3. 结合场景的环境描述
-4. 参考上下文分镜保持画面连贯性
-5. 添加风格提示词和质量词
-6. 使用英文，用逗号分隔
+生成详细的校园清新漫画风格提示词。
 
-仅返回提示词内容，不要其他说明。""",
+要求：
+1. 使用纯中文详细描述（不要只用逗号分隔的标签）
+2. 像讲故事一样生动地描述场景
+3. 包含角色视觉细节（发色、发型、瞳色、服装等）
+4. 包含环境和场景细节
+5. 使用校园清新漫画风格（明亮、柔和、柔和的色彩）
+6. 与上下文保持视觉一致性
+7. 只使用中文
+8. 图像中绝对不能有文字 - 不能有标识、字母、单词
+
+最后请补充风格标签：动漫风格，数字插画，漫画风格
+
+只返回提示词，不要解释。""",
             isPreset=True,
             createdAt=now,
             updatedAt=now
         ),
         PromptTemplate(
             id="preset_image_prompt_2",
-            name="动漫风格增强版",
-            description="动漫风格增强版，包含完整的动漫视觉元素",
+            name="现代都市漫画",
+            description="现代都市风格，新海诚风格，细腻的光影和城市细节",
             type=PromptType.IMAGE_PROMPT,
-            systemPrompt="""你是一位专业的动漫风格AI绘画提示词工程师。
-你的任务是将画面信息转换为高质量的动漫风格Stable Diffusion英文提示词。
+            systemPrompt="""你是一位专业的AI绘画提示词工程师。
+你的任务是将场景信息转换为高质量的中文详细描述格式的提示词。
 
-【动漫风格提示词要点】
+【重要规则 - 禁止文字】
+- 图像中绝对不能出现任何文字
+- 不能有标识、字母、单词、字幕、有可见文字的书籍
+- 不能有带文字的手机屏幕、带文字的电脑屏幕
+- 如果应该有标识，让它模糊或不可读
+- 最终图像中不能有任何形式的文字
 
-【主体描述】
-- 1girl/1boy/2girls等数量标签
-- 角色的核心动作和表情
+【风格 - 现代都市漫画（新海诚风格）】
+- 动漫风格，电影光效
+- 详细的城市背景，都市风景
+- 潮湿街道上的倒影，适用时的雨滴
+- 美丽的天空、云朵、日落/日出
+- 详细的建筑，夜晚的城市灯光
+- 灵感来自新海诚电影（你的名字、天气之子、铃芽之旅）
+- 鲜艳的色彩，高对比度，细致的阴影
 
-【角色视觉特征】
-- 发色：blonde hair, silver hair, pink hair, black hair等
-- 发型：long hair, short hair, twintails, braids, ponytail等
-- 瞳色：blue eyes, red eyes, green eyes, purple eyes, gold eyes等
-- 表情：smile, blush, serious, surprised, angry等
-- 服装：详细的服装描述
+【光线】
+- 电影光效，黄金时刻，蓝色时刻
+- 城市灯光，霓虹灯（但没有可读文字）
+- 戏剧性的阴影，轮廓光，逆光
+- 体积雾，大气透视
 
-【场景环境】
-- 室内/室外：indoors, outdoors
-- 具体场景：bedroom, classroom, forest, city street等
-- 时间天气：day, night, sunset, rain, snow等
+【构图】
+- 广角镜头，远景镜头，动态角度
+- 城市景观，水坑中的倒影
+- 低角度，高角度，视线水平
 
-【动漫风格元素】
-- anime style, cel shading（ cel shading）
-- vibrant colors（鲜艳色彩）
-- detailed background（详细背景）
-- beautiful detailed eyes（精致眼睛）
+【氛围】
+- 浪漫的，怀旧的，都市孤独，充满希望的，戏剧性的
 
-【画面质量】
-- masterpiece, best quality, ultra detailed
-- 4k, 8k, high resolution
-
-【光影效果】
-- soft lighting, cinematic lighting
-- volumetric lighting, ray tracing
-
-【构图视角】
-- cowboy shot（牛仔镜头，大腿以上）
-- full body（全身）
-- close-up（特写）
-- looking at viewer（看向镜头）
-
-【氛围情感】
-- warm atmosphere, cozy, dramatic, serene等
-
-【重要提醒】
-- 以"anime style, masterpiece, best quality, "开头
-- 使用英文
-- 用逗号分隔
-- 只输出提示词""",
-            userPrompt="""请根据以下信息生成动漫风格的Stable Diffusion英文提示词。
+【重要】
+- 使用纯中文详细描述
+- 像讲故事一样描述场景
+- 使用描述性、流畅的语言
+- 只使用中文
+- 图像中不能有文字""",
+            userPrompt="""根据以下信息生成高质量的中文详细描述格式的提示词。
 
 【角色信息】
 {characters}
@@ -490,86 +535,78 @@ def _get_preset_templates() -> List[PromptTemplate]:
 【风格提示词】
 {style_prompt}
 
-【当前分镜描述】
+【当前分镜】
 {scene_description}
 
 【上下文分镜】
 {context_storyboards}
 
-请生成详细的动漫风格提示词。要求：
-1. 以"anime style, masterpiece, best quality, "开头
-2. 融入角色的动漫视觉特征（发色、发型、瞳色、服装等）
-3. 结合场景环境
-4. 添加动漫风格元素（cel shading, vibrant colors等）
-5. 保持画面连贯性
-6. 使用英文，用逗号分隔
+生成详细的现代都市漫画风格提示词（新海诚风格）。
 
-仅返回提示词内容。""",
+要求：
+1. 使用纯中文详细描述（不要只用逗号分隔的标签）
+2. 像讲故事一样生动地描述场景
+3. 包含角色视觉细节（发色、发型、瞳色、服装等）
+4. 包含详细的城市环境（建筑、街道、天空、光线）
+5. 使用新海诚风格（电影光效、详细背景、鲜艳色彩）
+6. 与上下文保持视觉一致性
+7. 只使用中文
+8. 图像中绝对不能有文字 - 不能有标识、字母、单词、带文字的手机屏幕
+
+最后请补充风格标签：动漫风格，数字插画，新海诚风格，电影光效
+
+只返回提示词，不要解释。""",
             isPreset=True,
             createdAt=now,
             updatedAt=now
         ),
         PromptTemplate(
             id="preset_image_prompt_3",
-            name="写实风格增强版",
-            description="写实摄影风格增强版，追求电影级真实感",
+            name="国风水墨漫画",
+            description="国风水墨风格，传统水墨技法，东方美学意境",
             type=PromptType.IMAGE_PROMPT,
-            systemPrompt="""你是一位专业的写实摄影风格AI绘画提示词工程师。
-你的任务是将画面信息转换为高质量的写实风格Stable Diffusion英文提示词。
+            systemPrompt="""你是一位专业的AI绘画提示词工程师。
+你的任务是将场景信息转换为高质量的中文详细描述格式的提示词。
 
-【写实风格提示词要点】
+【重要规则 - 禁止文字】
+- 图像中绝对不能出现任何文字
+- 不能有书法、汉字、字母、单词
+- 不能有带文字的卷轴、带文字的标识
+- 如果应该有书法，让它抽象或模糊
+- 最终图像中不能有任何形式的文字
 
-【主体描述】
-- 真实的人物描述
-- 自然的动作和表情
+【风格 - 国风水墨漫画】
+- 中国传统艺术，水墨画
+- 武侠风格，古风美学
+- 墨迹、笔触、流动的墨
+- 黑白配以微妙的色彩强调
+- 适当时使用金色和红色强调
+- 优雅、优美、诗意的构图
+- 薄雾、雾气、大气透视
+- 灵感来自中国传统山水画
+- 竹林、山景、古建筑
 
-【角色视觉特征】
-- 真实的年龄特征
-- 皮肤质感：skin texture, pores, realistic skin
-- 自然发色：natural black hair, brown hair, gray hair等
-- 真实服装质感：fabric texture, wrinkles, cotton, silk, leather等
+【光线】
+- 柔和的光线、烛光、月光
+- 戏剧性的阴影、轮廓光
+- 体积雾、朦胧的氛围
 
-【场景环境】
-- 真实的环境细节
-- 材质表现：wood, stone, metal, glass等
-- 生活痕迹：dust, wear, natural disorder等
+【构图】
+- 动态构图、广角镜头
+- 低角度营造史诗感
+- 高角度营造戏剧性场景
+- 负空间、留白 - 艺术平衡的空白空间
 
-【写实风格元素】
-- photorealistic, hyperrealistic
-- cinematic lighting, film grain
-- depth of field（景深）
-- bokeh（背景虚化）
+【氛围】
+- 宁静的、安详的、史诗的、戏剧性的、神秘的、诗意的
 
-【画面质量】
-- masterpiece, best quality, ultra detailed
-- 4k, 8k, high resolution
-- sharp focus, intricate details
-
-【摄影术语】
-- shot on 35mm, shot on Arri Alexa
-- 85mm lens, 50mm lens
-- f/1.8, aperture
-- ISO 100, shutter speed
-
-【光影效果】
-- natural lighting, soft window light
-- golden hour, blue hour
-- rim light, backlight
-- dramatic shadows
-
-【构图视角】
-- eye level, low angle, high angle
-- rule of thirds（三分法）
-
-【氛围情感】
-- intimate, epic, peaceful, tense等
-
-【重要提醒】
-- 以"photorealistic, masterpiece, best quality, cinematic lighting, "开头
-- 使用英文
-- 用逗号分隔
-- 只输出提示词""",
-            userPrompt="""请根据以下信息生成写实摄影风格的Stable Diffusion英文提示词。
+【重要】
+- 使用纯中文详细描述
+- 像讲故事一样描述场景
+- 使用描述性、流畅的语言
+- 只使用中文
+- 图像中不能有文字 - 不能有书法、不能有汉字""",
+            userPrompt="""根据以下信息生成高质量的中文详细描述格式的提示词。
 
 【角色信息】
 {characters}
@@ -580,80 +617,76 @@ def _get_preset_templates() -> List[PromptTemplate]:
 【风格提示词】
 {style_prompt}
 
-【当前分镜描述】
+【当前分镜】
 {scene_description}
 
 【上下文分镜】
 {context_storyboards}
 
-请生成详细的写实风格提示词。要求：
-1. 以"photorealistic, masterpiece, best quality, cinematic lighting, "开头
-2. 融入真实的人物特征（皮肤质感、真实服装等）
-3. 结合场景环境和材质细节
-4. 添加摄影术语（镜头、光圈、胶片等）
-5. 使用电影光效
-6. 保持画面连贯性
-7. 使用英文，用逗号分隔
+生成详细的国风水墨风格提示词。
 
-仅返回提示词内容。""",
+要求：
+1. 使用纯中文详细描述（不要只用逗号分隔的标签）
+2. 像讲故事一样生动地描述场景
+3. 包含角色视觉细节（中国传统发型、汉服、剑/扇子等）
+4. 包含中国风环境（古建筑、竹林、山峦、薄雾等）
+5. 使用水墨风格（笔触、墨迹、优雅的构图）
+6. 与上下文保持视觉一致性
+7. 只使用中文
+8. 图像中绝对不能有文字 - 不能有书法、不能有汉字、不能有字母
+
+最后请补充风格标签：中国传统艺术，水墨画，古风美学，数字插画
+
+只返回提示词，不要解释。""",
             isPreset=True,
             createdAt=now,
             updatedAt=now
         ),
         PromptTemplate(
             id="preset_image_prompt_4",
-            name="古风/武侠增强版",
-            description="古风武侠风格增强版，强调中国传统美学",
+            name="国风水彩漫画",
+            description="国风水彩风格，清新透明的水彩质感，温暖明亮的色调",
             type=PromptType.IMAGE_PROMPT,
-            systemPrompt="""你是一位专业的古风/武侠风格AI绘画提示词工程师。
-你的任务是将画面信息转换为高质量的古风/武侠风格Stable Diffusion英文提示词。
+            systemPrompt="""你是一位专业的AI绘画提示词工程师。
+你的任务是将场景信息转换为高质量的中文详细描述格式的提示词。
 
-【古风/武侠风格提示词要点】
+【重要规则 - 禁止文字】
+- 图像中绝对不能出现任何文字
+- 不能有书法、汉字、字母、单词
+- 不能有带文字的卷轴、带文字的标识
+- 最终图像中不能有任何形式的文字
 
-【主体描述】
-- 角色的核心动作：standing, sitting, fighting, flying等
-- 武侠动作：sword fighting, martial arts, wielding sword等
+【风格 - 国风水彩漫画】
+- 水彩画，透明水彩
+- 古风美学，中国风格
+- 柔和的色彩渐变，精致的笔触
+- 温暖明亮的色调
+- 纸张质感，可见的水彩渲染
+- 樱花、柳树、牡丹、竹子
+- 边缘柔和的中国古建筑
+- 春天氛围，花卉元素
+- 优雅、梦幻、清新的感觉
 
-【角色视觉特征】
-- 古风发型：traditional Chinese hairstyle, hair bun, hair ornament等
-- 古风服装：hanfu, traditional Chinese robes, flowing sleeves, silk robes等
-- 武侠装备：sword, Chinese sword, whisk, fan, bow and arrow等
-- 古风配饰：jade pendant, hairpin, tassel等
+【光线】
+- 柔和的光线、日光、黄金时刻
+- 温柔的阳光透过花朵
+- 明亮欢快的氛围
 
-【场景环境】
-- 古风建筑：Chinese architecture, temple, palace, pavilion, courtyard等
-- 自然景观：bamboo forest, mountain landscape, cherry blossoms, willow tree等
-- 室内场景：wooden interior, paper lanterns, ink painting scrolls等
-- 天气氛围：mist, fog, moonlight, sunrise, falling petals等
+【构图】
+- 中景、全身
+- 看向观众、温柔的姿势
+- 花卉框架、自然构图
 
-【古风风格元素】
-- traditional Chinese art, Chinese watercolor style
-- ink wash painting, wuxia style
-- elegant, graceful, poetic composition
-- gold and red accents, muted color palette
+【氛围】
+- 温暖的、温柔的、梦幻的、清新的、浪漫的、宁静的
 
-【画面质量】
-- masterpiece, best quality, ultra detailed
-- 4k, 8k, high resolution
-
-【光影效果】
-- soft lighting, candlelight, moonlight
-- volumetric fog, atmospheric perspective
-
-【构图视角】
-- dynamic composition, wide shot
-- low angle for epic feel
-- high angle for dramatic scenes
-
-【氛围情感】
-- serene, tranquil, epic, dramatic, mysterious, romantic等
-
-【重要提醒】
-- 以"traditional Chinese art, wuxia style, masterpiece, best quality, "开头
-- 使用英文
-- 用逗号分隔
-- 只输出提示词""",
-            userPrompt="""请根据以下信息生成古风/武侠风格的Stable Diffusion英文提示词。
+【重要】
+- 使用纯中文详细描述
+- 像讲故事一样描述场景
+- 使用描述性、流畅的语言
+- 只使用中文
+- 图像中不能有文字""",
+            userPrompt="""根据以下信息生成高质量的中文详细描述格式的提示词。
 
 【角色信息】
 {characters}
@@ -664,34 +697,47 @@ def _get_preset_templates() -> List[PromptTemplate]:
 【风格提示词】
 {style_prompt}
 
-【当前分镜描述】
+【当前分镜】
 {scene_description}
 
 【上下文分镜】
 {context_storyboards}
 
-请生成详细的古风/武侠风格提示词。要求：
-1. 以"traditional Chinese art, wuxia style, masterpiece, best quality, "开头
-2. 融入古风服饰、发型、武器等元素
-3. 结合古风建筑、山水等场景
-4. 添加水墨、诗意等风格元素
-5. 保持画面连贯性
-6. 使用英文，用逗号分隔
+生成详细的国风水彩风格提示词。
 
-仅返回提示词内容。""",
+要求：
+1. 使用纯中文详细描述（不要只用逗号分隔的标签）
+2. 像讲故事一样生动地描述场景
+3. 包含角色视觉细节（中国传统发型、汉服、配饰）
+4. 包含中国水彩环境（花朵、柳树、古建筑等）
+5. 使用水彩风格（透明渲染、柔和色彩、纸张质感）
+6. 与上下文保持视觉一致性
+7. 只使用中文
+8. 图像中绝对不能有文字 - 不能有书法、不能有汉字、不能有字母
+
+最后请补充风格标签：水彩画，古风美学，中国风格，数字插画，水彩
+
+只返回提示词，不要解释。""",
             isPreset=True,
             createdAt=now,
             updatedAt=now
         ),
-
-        # ========== 场景提取预设 ==========
+# ========== 场景提取预设 ==========
         PromptTemplate(
             id="preset_scene_extraction_1",
             name="通用增强版",
-            description="专业场景提取模板，包含完整的视觉元素和氛围描写",
+            description="场景名称简洁化（客厅、卧室等），包含完整的视觉元素",
             type=PromptType.SCENE_EXTRACTION,
             systemPrompt="""你是一位专业的场景设定师和概念艺术家。
 你的任务是从小说文本中提取所有主要场景，并为每个场景创建详细、可用于AI绘画的场景设定。
+
+【重要要求】
+1. 场景名称必须简洁，使用通用的地点名称：
+   - 室内场景：客厅、卧室、厨房、书房、浴室、走廊、楼梯、地下室、阁楼、大厅、会议室、办公室、教室、实验室、病房、手术室等
+   - 室外场景：庭院、花园、公园、街道、广场、市场、车站、机场、码头、森林、草原、沙漠、海滩、山顶、山谷、河流、湖泊、皇宫、大殿、战场、地牢、监狱等
+   - 其他：根据文本内容选择简洁的名称
+
+2. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
 
 【场景提取原则】
 1. 识别文本中描述的每个独立地点
@@ -728,8 +774,12 @@ def _get_preset_templates() -> List[PromptTemplate]:
    - 场景给人的整体感觉（温馨、神秘、阴森、宁静等）""",
             userPrompt="""请从以下小说文本中提取所有主要场景。
 
+重要要求：
+- 场景名称必须简洁，使用通用的地点名称（如：客厅、卧室、庭院、走廊、皇宫、大殿、战场等）
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
+
 对每个场景，请提供：
-1. name: 场景名称（简洁但有辨识度，如"森林中的小木屋"、"昏暗的地牢"）
+1. name: 场景名称（简洁，如"客厅"、"卧室"、"森林"）
 2. description: 详细的视觉描述（包含空间布局、物体陈设、材质质感、光线氛围、时间天气、情感基调等）
 
 仅返回JSON数组，格式如下：
@@ -749,10 +799,18 @@ def _get_preset_templates() -> List[PromptTemplate]:
         PromptTemplate(
             id="preset_scene_extraction_2",
             name="动漫风格",
-            description="动漫风格场景提取，强调色彩、光影和视觉冲击力",
+            description="场景名称简洁化（客厅、卧室等），动漫风格场景提取",
             type=PromptType.SCENE_EXTRACTION,
             systemPrompt="""你是一位专业的动漫场景概念艺术家。
 你的任务是从小说文本中提取场景，并创建适合动漫风格的详细场景设定。
+
+【重要要求】
+1. 场景名称必须简洁，使用通用的地点名称：
+   - 室内场景：客厅、卧室、厨房、书房、浴室、走廊、楼梯、地下室、阁楼、大厅、会议室、办公室、教室、实验室、病房、手术室等
+   - 室外场景：庭院、花园、公园、街道、广场、市场、车站、机场、码头、森林、草原、沙漠、海滩、山顶、山谷、河流、湖泊、皇宫、大殿、战场、地牢、监狱等
+   - 其他：根据文本内容选择简洁的名称
+
+2. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
 
 【动漫场景设计要点】
 
@@ -781,8 +839,12 @@ def _get_preset_templates() -> List[PromptTemplate]:
 - 忧郁、抒情的文艺氛围""",
             userPrompt="""请从以下小说文本中提取所有主要场景，以动漫风格进行设定。
 
+重要要求：
+- 场景名称必须简洁，使用通用的地点名称（如：客厅、卧室、庭院、走廊、皇宫、大殿、战场等）
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
+
 对每个场景，请提供：
-1. name: 场景名称（如"夕阳下的教室"、"樱花飞舞的步道"）
+1. name: 场景名称（简洁，如"客厅"、"卧室"、"森林"）
 2. description: 详细的动漫风格视觉描述（包含色彩、光影、背景元素、氛围等）
 
 仅返回JSON数组，格式如下：
@@ -802,10 +864,18 @@ def _get_preset_templates() -> List[PromptTemplate]:
         PromptTemplate(
             id="preset_scene_extraction_3",
             name="写实风格",
-            description="写实电影风格场景提取，追求真实感和细节",
+            description="场景名称简洁化（客厅、卧室等），写实电影风格场景提取",
             type=PromptType.SCENE_EXTRACTION,
             systemPrompt="""你是一位专业的电影场景美术指导。
 你的任务是从小说文本中提取场景，并创建适合写实/电影风格的详细场景设定。
+
+【重要要求】
+1. 场景名称必须简洁，使用通用的地点名称：
+   - 室内场景：客厅、卧室、厨房、书房、浴室、走廊、楼梯、地下室、阁楼、大厅、会议室、办公室、教室、实验室、病房、手术室等
+   - 室外场景：庭院、花园、公园、街道、广场、市场、车站、机场、码头、森林、草原、沙漠、海滩、山顶、山谷、河流、湖泊、皇宫、大殿、战场、地牢、监狱等
+   - 其他：根据文本内容选择简洁的名称
+
+2. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
 
 【写实场景设计要点】
 
@@ -837,8 +907,12 @@ def _get_preset_templates() -> List[PromptTemplate]:
 - 符合故事调性的整体基调""",
             userPrompt="""请从以下小说文本中提取所有主要场景，以写实/电影风格进行设定。
 
+重要要求：
+- 场景名称必须简洁，使用通用的地点名称（如：客厅、卧室、庭院、走廊、皇宫、大殿、战场等）
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
+
 对每个场景，请提供：
-1. name: 场景名称（如"破旧的公寓客厅"、"清晨的森林空地"）
+1. name: 场景名称（简洁，如"客厅"、"卧室"、"森林"）
 2. description: 详细的写实风格视觉描述（包含空间真实感、材质表现、电影光效、细节层次、氛围等）
 
 仅返回JSON数组，格式如下：
@@ -858,10 +932,18 @@ def _get_preset_templates() -> List[PromptTemplate]:
         PromptTemplate(
             id="preset_scene_extraction_4",
             name="古风/武侠",
-            description="古风武侠风格场景提取，强调中国传统美学和意境",
+            description="场景名称简洁化（客厅、卧室等），古风武侠风格场景提取",
             type=PromptType.SCENE_EXTRACTION,
             systemPrompt="""你是一位专业的古风/武侠场景概念艺术家。
 你的任务是从小说文本中提取场景，并创建适合古风/武侠风格的详细场景设定。
+
+【重要要求】
+1. 场景名称必须简洁，使用通用的地点名称：
+   - 室内场景：客厅、卧室、厨房、书房、浴室、走廊、楼梯、地下室、阁楼、大厅、会议室、办公室、教室、实验室、病房、手术室等
+   - 室外场景：庭院、花园、公园、街道、广场、市场、车站、机场、码头、森林、草原、沙漠、海滩、山顶、山谷、河流、湖泊、皇宫、大殿、战场、地牢、监狱等
+   - 其他：根据文本内容选择简洁的名称
+
+2. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
 
 【古风场景设计要点】
 
@@ -892,8 +974,12 @@ def _get_preset_templates() -> List[PromptTemplate]:
 - 隐逸意境（山洞、幽谷、竹林深处等）""",
             userPrompt="""请从以下小说文本中提取所有主要场景，以古风/武侠风格进行设定。
 
+重要要求：
+- 场景名称必须简洁，使用通用的地点名称（如：客厅、卧室、庭院、走廊、皇宫、大殿、战场等）
+- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"、"李大小姐"、"爱妃"等），请根据上下文推断并记录这些代词指代的具体人物名称
+
 对每个场景，请提供：
-1. name: 场景名称（如"烟雨江南的园林"、"华山之巅的剑阁"）
+1. name: 场景名称（简洁，如"客厅"、"卧室"、"森林"）
 2. description: 详细的古风/武侠风格视觉描述（包含建筑元素、自然景观、意境营造、武侠特色等）
 
 仅返回JSON数组，格式如下：

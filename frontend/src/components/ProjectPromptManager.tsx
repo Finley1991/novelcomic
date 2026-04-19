@@ -14,25 +14,31 @@ interface ProjectPromptManagerProps {
 
 const typeLabels: Record<PromptType, string> = {
   character_extraction: '角色提取',
-  storyboard_split: '分镜拆分（旧版）',
+  storyboard_split: '分镜拆分',
   image_prompt: '图像生成',
   scene_extraction: '场景提取',
 };
 
-const availableTypes: PromptType[] = ['character_extraction', 'scene_extraction'];
+const availableTypes: PromptType[] = ['character_extraction', 'scene_extraction', 'storyboard_split'];
 
 const defaultTemplates: Partial<Record<PromptType, Partial<ProjectPromptTemplate>>> = {
   character_extraction: {
     name: '角色提取模板',
     description: '从小说文本中提取角色信息',
     systemPrompt: '你是一个专业的小说角色分析助手。请从给定的文本中提取所有出现的角色信息。',
-    userPrompt: '请分析以下文本，提取其中的角色：\n\n{text}',
+    userPrompt: '请分析以下文本，提取其中的角色：\n\n{chunk}',
   },
   scene_extraction: {
     name: '场景提取模板',
     description: '从小说文本中提取场景信息',
-    systemPrompt: '你是一个专业的小说场景分析助手。请从给定的文本中提取所有场景信息。',
-    userPrompt: '请分析以下文本，提取其中的场景：\n\n{text}',
+    systemPrompt: '你是一位专业的场景设定师和概念艺术家。你的任务是从小说文本中提取所有主要场景，并为每个场景创建详细、可用于AI绘画的场景设定。',
+    userPrompt: '请从以下小说文本中提取所有主要场景。\n\n对每个场景，请提供：\n1. name: 场景名称（简洁，如"客厅"、"卧室"、"森林"）\n2. description: 详细的视觉描述（包含空间布局、物体陈设、材质质感、光线氛围、时间天气、情感基调等）\n\n仅返回JSON数组，格式如下：\n[\n  {{\n    "name": "场景名称",\n    "description": "详细的视觉描述，用于AI绘画生成该场景"\n  }}\n]\n\n小说文本：\n{chunk}',
+  },
+  storyboard_split: {
+    name: '分镜拆分模板',
+    description: '按情节合理拆分小说文本，sceneDescription使用原文20-40字',
+    systemPrompt: '你是一个专业的文学编辑。将小说文本按情节拆分为多个片段。\n\n【重要要求】\n1. sceneDescription 必须直接使用原文片段，不要修改或重新描述\n2. sceneDescription 的字数必须控制在 20-40 字之间（汉字）\n3. 尽量保证内容的连贯性和完整性\n4. 按自然的情节断点拆分\n5. 不需要 dialogue 和 narration 字段\n6. characterNames 必须包含该分镜中出现的所有角色\n7. 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称',
+    userPrompt: '{characters}\n{scenes}\n\n将以下小说文本按情节拆分为多个片段。\n\n重要要求：\n- sceneDescription 必须直接使用原文片段，不要修改或重新描述\n- sceneDescription 的字数必须控制在 20-40 字之间（汉字）\n- 尽量保证内容的连贯性和完整性\n- 按自然的情节断点拆分\n- 不需要 dialogue 和 narration 字段\n- characterNames 必须包含该分镜中出现的所有角色\n- 如果文本中出现代词（如"我"、"他"、"她"、"男主"、"女主"等），请根据上下文推断并替换为具体的角色名称\n\n对每个分镜提供：\n1. index: 序号（从{current_index}开始）\n2. sceneDescription: 原文片段（20-40字，直接复制原文）\n3. characterNames: 出现的角色名数组（代词请替换为具体角色名）\n\n仅返回JSON数组，格式如下：\n[\n  {{\n    "index": 0,\n    "sceneDescription": "原文片段（20-40字）...",\n    "characterNames": ["角色1", "角色2"]\n  }}\n]\n\n小说文本：\n{chunk}',
   },
 };
 

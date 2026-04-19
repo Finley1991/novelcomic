@@ -119,6 +119,7 @@ class OllamaClient:
         self,
         novel_text: str,
         characters: List[Dict[str, Any]] = None,
+        scenes: List[Dict[str, Any]] = None,
         project: Optional[Any] = None,
         global_settings: Optional[Any] = None
     ) -> List[Dict[str, Any]]:
@@ -137,10 +138,15 @@ class OllamaClient:
             if characters:
                 char_info = "角色列表：\n" + "\n".join([f"- {c.get('name', '')}: {c.get('description', '')}" for c in characters])
 
+            scene_info = ""
+            if scenes:
+                scene_info = "场景列表：\n" + "\n".join([f"- {s.get('name', '')}: {s.get('description', '')}" for s in scenes])
+
             system_prompt, user_prompt = prompt_template_manager.render_template(
                 template,
                 chunk=chunk,
                 characters=char_info,
+                scenes=scene_info,
                 current_index=str(current_index)
             )
 
