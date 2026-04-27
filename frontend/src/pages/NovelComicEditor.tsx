@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   projectApi,
@@ -17,11 +17,17 @@ import {
   type Character,
   type Scene,
 } from '../services/api';
-import { TTS_VOICES } from '../constants/ttsVoices';
 import { WizardSteps, wizardStepDefinitions, type WizardStep } from '../components/project/WizardSteps';
 import { ProjectPromptManager } from '../components/ProjectPromptManager';
 import { StoryboardPromptInference } from '../components/StoryboardPromptInference';
 import { StoryboardImageGeneration } from '../components/StoryboardImageGeneration';
+import { CharacterManager } from '../components/project/CharacterManager';
+import { SceneManager } from '../components/project/SceneManager';
+import { StoryboardSplitter } from '../components/project/StoryboardSplitter';
+import { ProjectSettings } from '../components/project/ProjectSettings';
+import { CharacterTestImageModal } from '../components/project/CharacterTestImageModal';
+import { AudioGenerator } from '../components/project/AudioGenerator';
+import { JianyingExporter } from '../components/project/JianyingExporter';
 import { useToast } from '../hooks/useToast';
 
 interface NovelComicEditorProps {
@@ -33,25 +39,18 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToast } = useToast();
+
   const [project, setProject] = useState<Project>(initialProject);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
-  const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
-  const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
-  const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [savingProjectSettings, setSavingProjectSettings] = useState(false);
-  const [linesPerStoryboard, setLinesPerStoryboard] = useState(1);
-  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
-  const [editingPrompt, setEditingPrompt] = useState<{ [key: string]: string }>({});
-  const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
   const [imagePromptTemplates, setImagePromptTemplates] = useState<ImagePromptTemplate[]>([]);
   const [exportingJianying, setExportingJianying] = useState(false);
   const [exportResult, setExportResult] = useState<{ success: boolean; message: string } | null>(null);
   const [savingCharacterTts, setSavingCharacterTts] = useState<string | null>(null);
   const [tempCharacterTts, setTempCharacterTts] = useState<{ [charId: string]: Character['ttsConfig'] }>({});
-  const [bulkVoice, setBulkVoice] = useState<string>('');
   const [extractingCharacters, setExtractingCharacters] = useState(false);
   const [extractingScenes, setExtractingScenes] = useState(false);
   const [tempScene, setTempScene] = useState<{ [sceneId: string]: Partial<Scene> }>({});
@@ -64,33 +63,22 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     images?: { completed: number; total: number };
     audio?: { completed: number; total: number };
   } | null>(null);
-  // 上传相关状态
   const [uploadingSubtitle, setUploadingSubtitle] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
-  const subtitleFileRef = useRef<HTMLInputElement>(null);
-  const audioFileRef = useRef<HTMLInputElement>(null);
-  // 本地文本状态，避免每次输入都调用 API
   const [localSourceText, setLocalSourceText] = useState('');
-  // 项目提示词管理状态
   const [showProjectPromptManager, setShowProjectPromptManager] = useState(false);
   const [projectPromptManagerType, setProjectPromptManagerType] = useState<PromptType>('character_extraction');
-  // 角色编辑状态
   const [tempCharacter, setTempCharacter] = useState<{ [charId: string]: Partial<Character> }>({});
   const [savingCharacter, setSavingCharacter] = useState<string | null>(null);
-  // 角色测试生图状态
   const [showCharacterTestImage, setShowCharacterTestImage] = useState<string | null>(null);
   const [characterTestImagePrompt, setCharacterTestImagePrompt] = useState('');
   const [characterTestImageUrl, setCharacterTestImageUrl] = useState<string | null>(null);
   const [characterTestImageLoading, setCharacterTestImageLoading] = useState(false);
-  // 分镜拆分模式状态
-  const [splitMode, setSplitMode] = useState<'fixed' | 'ai'>('fixed');
-  const [customLinesPerStoryboard, setCustomLinesPerStoryboard] = useState(1);
-  const [autoMatchCharacters, setAutoMatchCharacters] = useState(true);
-  const [autoMatchScenes, setAutoMatchScenes] = useState(true);
+  const [editingPrompt, setEditingPrompt] = useState<{ [key: string]: string }>({});
+  const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     setProject(initialProject);
-    // 初始化本地文本状态
     setLocalSourceText(initialProject.sourceText || '');
   }, [initialProject]);
 
@@ -112,9 +100,7 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     if (!id) return;
     try {
       const response = await projectApi.get(id);
-      // 向后兼容：确保 scenes 和其他必需字段存在
       const originalData = response.data || {};
-      // 创建一个新对象，避免直接修改 response.data
       const projectData: any = {
         ...originalData,
         scenes: originalData.scenes || [],
@@ -130,14 +116,12 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           sceneId: sb.sceneId ?? null,
           characterIds: sb.characterIds ?? []
         })),
-        // 确保新字段有默认值
         subtitleSegments: originalData.subtitleSegments ?? [],
         uploadedAudioFiles: originalData.uploadedAudioFiles ?? [],
         projectLocalPromptTemplates: originalData.projectLocalPromptTemplates ?? [],
       };
       setProject(projectData);
       onProjectUpdate(projectData);
-      // 更新本地文本
       setLocalSourceText(projectData.sourceText || '');
     } catch (error) {
       console.error('Failed to load project:', error);
@@ -162,14 +146,11 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-  // 字幕上传处理
   const handleUploadSubtitle = async (file: File) => {
     if (!id) return;
     setUploadingSubtitle(true);
-    console.log('开始上传字幕文件:', file.name, file.size, file.type);
     try {
       const response = await generationApi.uploadSubtitle(id, file);
-      console.log('上传成功，响应数据:', response.data);
       setLocalSourceText(response.data.textSegments.map((t: any) => t.text).join('\n'));
       await loadProject();
       addToast({
@@ -177,9 +158,7 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
         message: `字幕上传成功！共 ${response.data.textSegments.length} 个片段`,
       });
     } catch (error: any) {
-      console.error('字幕上传失败 - 详细错误:', error);
-      console.error('错误响应:', error?.response);
-      console.error('错误消息:', error?.message);
+      console.error('字幕上传失败:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || '字幕上传失败，请重试';
       addToast({
         type: 'error',
@@ -209,22 +188,18 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-  // 音频上传处理
   const handleUploadAudio = async (file: File) => {
     if (!id) return;
     setUploadingAudio(true);
-    console.log('开始上传音频文件:', file.name, file.size, file.type);
     try {
       const response = await generationApi.uploadAudio(id, file);
-      console.log('音频上传成功，响应数据:', response.data);
       await loadProject();
       addToast({
         type: 'success',
         message: `音频上传成功：${file.name}`,
       });
     } catch (error: any) {
-      console.error('音频上传失败 - 详细错误:', error);
-      console.error('错误响应:', error?.response);
+      console.error('音频上传失败:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || '音频上传失败，请重试';
       addToast({
         type: 'error',
@@ -238,19 +213,16 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
   const handleUploadAudios = async (files: FileList) => {
     if (!id) return;
     setUploadingAudio(true);
-    console.log('开始批量上传音频文件，数量:', files.length);
     try {
       const fileArray = Array.from(files);
       const response = await generationApi.uploadAudios(id, fileArray);
-      console.log('批量上传成功，响应数据:', response.data);
       await loadProject();
       addToast({
         type: 'success',
         message: `成功上传 ${fileArray.length} 个音频文件`,
       });
     } catch (error: any) {
-      console.error('批量上传音频失败 - 详细错误:', error);
-      console.error('错误响应:', error?.response);
+      console.error('批量上传音频失败:', error);
       const errorMsg = error?.response?.data?.detail || error?.message || '音频上传失败，请重试';
       addToast({
         type: 'error',
@@ -280,7 +252,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-
   const handleUpdateProjectPromptTemplate = async (type: PromptType, templateId: string) => {
     if (!id || !project) return;
     setSavingProjectSettings(true);
@@ -309,12 +280,9 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
         audio: response.data.audio
       });
 
-      // 检查是否所有生成都完成了
       const { images, audio } = response.data;
       const imagesDone = !images || images.completed >= images.total;
       const audioDone = !audio || audio.completed >= audio.total;
-
-      // 检查是否还有正在生成中的分镜
       const hasGeneratingImages = project.storyboards.some(sb => sb.imageStatus === 'generating');
       const hasGeneratingAudio = project.storyboards.some(sb => sb.audioStatus === 'generating');
 
@@ -444,12 +412,10 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     const char = project.characters.find(c => c.id === charId);
     if (!char) return;
 
-    // 使用 tempCharacter 中的值（如果正在编辑）或者 char 中的值
     const currentCharData = tempCharacter[charId] || {};
     const characterPrompt = currentCharData.characterPrompt ?? char.characterPrompt;
     const negativePrompt = currentCharData.negativePrompt ?? char.negativePrompt;
 
-    // 组合提示词
     let fullPrompt = characterPrompt || '';
     if (project.stylePrompt) {
       fullPrompt = fullPrompt ? `${fullPrompt}, ${project.stylePrompt}` : project.stylePrompt;
@@ -503,19 +469,16 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
 
   const handleSplitStoryboard = async () => {
     if (!id || !project) return;
-
     setSplittingStoryboards(true);
     setSplitProgress(0);
     setSplitStatusText('正在拆分剧本...');
-
     try {
       await storyboardApi.split(id, {
-        split_mode: splitMode,
-        lines_per_storyboard: customLinesPerStoryboard,
-        auto_match_characters: autoMatchCharacters,
-        auto_match_scenes: autoMatchScenes,
+        split_mode: 'fixed',
+        lines_per_storyboard: 1,
+        auto_match_characters: true,
+        auto_match_scenes: true,
       });
-
       setSplitProgress(100);
       setSplitStatusText('完成！');
       setTimeout(() => {
@@ -523,7 +486,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
         setSplitProgress(0);
         setSplitStatusText('');
       }, 1000);
-
       await loadProject();
     } catch (error) {
       console.error('Failed to split storyboard:', error);
@@ -534,12 +496,9 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-  // 提示词推理相关函数
   const handleInferenceGeneratePrompts = async (storyboardIds?: string[]) => {
     if (!id || !project) return;
-
     setGeneratingPrompts(true);
-
     try {
       await storyboardApi.generatePrompts(id, storyboardIds);
       await loadProject();
@@ -568,12 +527,10 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     setEditingPrompt(prev => ({ ...prev, [storyboardId]: prompt }));
   };
 
-  // 图片生成相关函数
   const handleGenerateImages = async (storyboardIds?: string[], forceRegenerate?: boolean) => {
     if (!id) return;
     setLoading(true);
     try {
-      // 重置取消标志
       await generationApi.resetCancel(id);
       await generationApi.generateImages(id, storyboardIds, forceRegenerate);
       setPolling(true);
@@ -591,7 +548,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
       const storyboard = project.storyboards.find(sb => sb.id === storyboardId);
       const forceRegenerate = storyboard?.imageStatus === 'completed';
       await generationApi.generateImage(id, storyboardId, forceRegenerate);
-      // 只在还没有开始 polling 时才设置
       if (!polling) {
         setPolling(true);
       }
@@ -724,28 +680,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     });
   };
 
-  const handleApplyBulkVoiceToStoryboards = async (voice: string) => {
-    if (!id || !project) return;
-    try {
-      // 为所有分镜应用相同的声音
-      await Promise.all(
-        project.storyboards.map(sb =>
-          storyboardApi.update(id, sb.id, {
-            ttsConfig: {
-              voice,
-              rate: 1.0,
-              pitch: 0
-            }
-          })
-        )
-      );
-      await loadProject();
-      setBulkVoice('');
-    } catch (error) {
-      console.error('Failed to apply bulk voice:', error);
-    }
-  };
-
   const handleStoryboardVoiceChange = async (storyboardId: string, voice: string) => {
     if (!id) return;
     try {
@@ -762,15 +696,12 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-  // Map wizard steps to internal content display
-  // Wizard steps: 0=项目设置, 1=角色管理, 2=场景管理, 3=分镜编辑, 4=导出交付
   const getWizardSteps = (): WizardStep[] => {
     return wizardStepDefinitions.map((step, index) => ({
       ...step,
       status: index < currentStep ? 'completed' : index === currentStep ? 'current' : 'pending',
     }));
   };
-
 
   return (
     <div>
@@ -786,7 +717,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
         </div>
       </div>
 
-      {/* Wizard Steps Navigation */}
       <WizardSteps
         steps={getWizardSteps()}
         currentStep={currentStep}
@@ -794,634 +724,89 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
       />
 
       <div className="card p-6">
-        {/* Step 0: 项目设置 */}
         {currentStep === 0 && (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">项目设置</h3>
-            </div>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
-                  项目名称
-                </label>
-                <input
-                  type="text"
-                  value={project.name}
-                  className="input-field w-full"
-                  readOnly
-                />
-              </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                    项目 Prompt 模板
-                  </label>
-                  <a
-                    href="/templates"
-                    className="text-primary-500 hover:text-primary-600 text-sm"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    管理模板 →
-                  </a>
-                </div>
-                <div className="space-y-4">
-                  {[
-                    { key: 'character_extraction' as const, label: '角色提取' },
-                    { key: 'scene_extraction' as const, label: '场景提取' },
-                    { key: 'storyboard_split' as const, label: '分镜拆分' },
-                    { key: 'image_prompt' as const, label: '图像生成' },
-                  ].map(({ key: type, label }) => {
-                    const templatesByType = promptTemplates.filter(t => t.type === type);
-                    return (
-                      <div key={type}>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                          {label}
-                        </label>
-                        <select
-                          value={project.projectPromptTemplates?.[type] || ''}
-                          onChange={(e) => handleUpdateProjectPromptTemplate(type, e.target.value)}
-                          disabled={savingProjectSettings}
-                          className="input-field w-full"
-                        >
-                          <option value="">-- 使用全局默认 --</option>
-                          {templatesByType.map((template) => (
-                            <option key={template.id} value={template.id}>
-                              {template.name} {template.isPreset ? '(预设)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 字幕上传 */}
-              <div className="border-t border-light-divider dark:border-dark-divider pt-6">
-                <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
-                  上传字幕
-                </label>
-                <div className="space-y-3">
-                  <input
-                    ref={subtitleFileRef}
-                    type="file"
-                    accept=".srt,.vtt,.lrc,.txt"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        handleUploadSubtitle(e.target.files[0]);
-                      }
-                    }}
-                  />
-                  {project.subtitleFilePath ? (
-                    <div className="flex items-center gap-2 p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-500/20">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-success-600 dark:text-success-400">✓</span>
-                          <span className="font-medium text-light-text-primary dark:text-dark-text-primary">
-                            已上传字幕
-                          </span>
-                        </div>
-                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                          {project.subtitleSegments?.length || 0} 个字幕片段
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleDeleteSubtitle}
-                        className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
-                      >
-                        删除字幕
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => subtitleFileRef.current?.click()}
-                      disabled={uploadingSubtitle}
-                      className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed w-full"
-                    >
-                      {uploadingSubtitle ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin">⟳</span> 上传中...
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-2">
-                          <span>📝</span> 上传字幕文件（支持 .srt, .vtt, .lrc, .txt）
-                        </span>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 音频上传 */}
-              <div className="border-t border-light-divider dark:border-dark-divider pt-6">
-                <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-2">
-                  上传音频
-                </label>
-                <div className="space-y-3">
-                  <input
-                    ref={audioFileRef}
-                    type="file"
-                    accept=".wav,.mp3,.m4a"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        if (e.target.files.length === 1) {
-                          handleUploadAudio(e.target.files[0]);
-                        } else {
-                          handleUploadAudios(e.target.files);
-                        }
-                      }
-                    }}
-                  />
-                  {project.uploadedAudioFiles?.length > 0 ? (
-                    <div className="flex items-center gap-2 p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-500/20">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-success-600 dark:text-success-400">✓</span>
-                          <span className="font-medium text-light-text-primary dark:text-dark-text-primary">
-                            已上传音频
-                          </span>
-                        </div>
-                        <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                          {project.uploadedAudioFiles.length} 个音频文件
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleDeleteUploadedAudios}
-                        className="btn-secondary text-red-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700"
-                      >
-                        清空上传
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => audioFileRef.current?.click()}
-                      disabled={uploadingAudio}
-                      className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed w-full"
-                    >
-                      {uploadingAudio ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="animate-spin">⟳</span> 上传中...
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-2">
-                          <span>🎵</span> 上传音频文件（支持 .wav, .mp3, .m4a，可多选）
-                        </span>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 提示 */}
-              <div className="bg-secondary-50 dark:bg-secondary-500/10 rounded-xl p-4 border border-secondary-200 dark:border-secondary-500/20">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-secondary-100 dark:bg-secondary-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-secondary-600 dark:text-secondary-400">💡</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-1">
-                      支持两种方式输入文本和音频
-                    </h4>
-                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                      方式1：后续在分镜编辑步骤中自动拆分文本并生成配音
-                    </p>
-                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                      方式2：点击上方按钮上传字幕文件和音频文件
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ProjectSettings
+            projectId={id || ''}
+            projectName={project.name}
+            projectPromptTemplates={project.projectPromptTemplates}
+            subtitleFilePath={project.subtitleFilePath}
+            subtitleSegments={project.subtitleSegments || []}
+            uploadedAudioFiles={project.uploadedAudioFiles || []}
+            promptTemplates={promptTemplates}
+            savingProjectSettings={savingProjectSettings}
+            uploadingSubtitle={uploadingSubtitle}
+            uploadingAudio={uploadingAudio}
+            onUpdateProjectPromptTemplate={handleUpdateProjectPromptTemplate}
+            onUploadSubtitle={handleUploadSubtitle}
+            onDeleteSubtitle={handleDeleteSubtitle}
+            onUploadAudio={handleUploadAudio}
+            onUploadAudios={handleUploadAudios}
+            onDeleteUploadedAudios={handleDeleteUploadedAudios}
+          />
         )}
 
-        {/* Step 1: 角色管理 */}
         {currentStep === 1 && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">角色列表</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setProjectPromptManagerType('character_extraction');
-                    setShowProjectPromptManager(true);
-                  }}
-                  className="btn-secondary"
-                >
-                  管理提示词
-                </button>
-                <button
-                  onClick={handleExtractCharacters}
-                  disabled={extractingCharacters}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {extractingCharacters ? '提取中...' : '自动提取角色'}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {project.characters.map((char) => (
-                <div key={char.id} className="border border-light-border dark:border-dark-borderborder-light-border dark:border-dark-border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-semibold text-light-text-primary dark:text-dark-text-primary">{char.name}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setEditingCharacterId(
-                          editingCharacterId === char.id ? null : char.id
-                        )}
-                        className="text-primary-500 text-sm hover:text-primary-600"
-                      >
-                        {editingCharacterId === char.id ? '收起' : '编辑'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {editingCharacterId === char.id ? (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">角色描述</label>
-                        <textarea
-                          value={tempCharacter[char.id]?.description ?? char.description}
-                          onChange={(e) => handleTempCharacterChange(char.id, 'description', e.target.value)}
-                          className="input-field w-full"
-                          rows={2}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">角色提示词 (英文)</label>
-                        <textarea
-                          value={tempCharacter[char.id]?.characterPrompt ?? char.characterPrompt}
-                          onChange={(e) => handleTempCharacterChange(char.id, 'characterPrompt', e.target.value)}
-                          className="input-field w-full font-mono text-sm"
-                          rows={3}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">负面提示词 (英文)</label>
-                        <textarea
-                          value={tempCharacter[char.id]?.negativePrompt ?? char.negativePrompt}
-                          onChange={(e) => handleTempCharacterChange(char.id, 'negativePrompt', e.target.value)}
-                          className="input-field w-full font-mono text-sm"
-                          rows={2}
-                        />
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-light-border dark:border-dark-border">
-                        <button
-                          onClick={() => handleCharacterTestImage(char.id)}
-                          className="btn-secondary text-sm"
-                        >
-                          🎨 测试生图
-                        </button>
-                        <button
-                          onClick={() => handleSaveCharacter(char.id)}
-                          disabled={savingCharacter === char.id}
-                          className={`btn-primary ${savingCharacter === char.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          {savingCharacter === char.id ? '保存中...' : '保存'}
-                        </button>
-                      </div>
-                      {/* 声音配置 - 在编辑模式下也显示 */}
-                      <div className="pt-4 border-t border-light-border dark:border-dark-border space-y-4">
-                        <h5 className="font-medium text-sm text-light-text-primary dark:text-dark-text-primary">声音配置</h5>
-                        <div>
-                          <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">声音</label>
-                          <select
-                            value={tempCharacterTts[char.id]?.voice || char.ttsConfig?.voice || 'zh-CN-XiaoxiaoNeural'}
-                            onChange={(e) => {
-                              handleTempCharacterTtsChange(char.id, 'voice', e.target.value);
-                            }}
-                            className="input-field w-full"
-                          >
-                            {TTS_VOICES.map((voice) => (
-                              <option key={voice.value} value={voice.value}>
-                                {voice.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                            语速: {(tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0).toFixed(1)}x
-                          </label>
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="2.0"
-                            step="0.1"
-                            value={tempCharacterTts[char.id]?.rate || char.ttsConfig?.rate || 1.0}
-                            onChange={(e) => {
-                              handleTempCharacterTtsChange(char.id, 'rate', parseFloat(e.target.value));
-                            }}
-                            className="w-full"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                            音调: {(tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0)}Hz
-                          </label>
-                          <input
-                            type="range"
-                            min="-100"
-                            max="100"
-                            step="1"
-                            value={tempCharacterTts[char.id]?.pitch ?? char.ttsConfig?.pitch ?? 0}
-                            onChange={(e) => {
-                              handleTempCharacterTtsChange(char.id, 'pitch', parseInt(e.target.value));
-                            }}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => handleSaveCharacterTts(char.id)}
-                            disabled={savingCharacterTts === char.id || !tempCharacterTts[char.id]}
-                            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {savingCharacterTts === char.id ? '保存声音...' : '保存声音'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{char.description}</p>
-                      {char.characterPrompt && (
-                        <div className="mt-2">
-                          <p className="text-xs text-light-text-tertiary dark:text-dark-text-tertiary font-mono truncate">
-                            提示词: {char.characterPrompt}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-              {project.characters.length === 0 && (
-                <p className="text-light-text-secondary dark:text-dark-text-secondary">还没有角色，点击上方按钮自动提取</p>
-              )}
-            </div>
-          </div>
+          <CharacterManager
+            projectId={id || ''}
+            characters={project.characters}
+            onExtractCharacters={handleExtractCharacters}
+            extractingCharacters={extractingCharacters}
+            onOpenPromptManager={(type) => {
+              setProjectPromptManagerType(type);
+              setShowProjectPromptManager(true);
+            }}
+            onUpdateCharacter={() => Promise.resolve()}
+            onSaveCharacter={handleSaveCharacter}
+            savingCharacter={savingCharacter}
+            tempCharacter={tempCharacter}
+            onTempCharacterChange={handleTempCharacterChange}
+            onCharacterTestImage={handleCharacterTestImage}
+            onSaveCharacterTts={handleSaveCharacterTts}
+            savingCharacterTts={savingCharacterTts}
+            tempCharacterTts={tempCharacterTts}
+            onTempCharacterTtsChange={handleTempCharacterTtsChange}
+          />
         )}
 
-        {/* Step 2: 场景管理 */}
         {currentStep === 2 && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">场景列表</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setProjectPromptManagerType('scene_extraction');
-                    setShowProjectPromptManager(true);
-                  }}
-                  className="btn-secondary"
-                >
-                  管理提示词
-                </button>
-                <button
-                  onClick={handleExtractScenes}
-                  disabled={extractingScenes}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {extractingScenes ? '提取中...' : '自动提取场景'}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {(project.scenes || []).map((scene) => (
-                <div key={scene.id} className="border border-light-border dark:border-dark-borderborder-light-border dark:border-dark-border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-semibold text-light-text-primary dark:text-dark-text-primary">{scene.name}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setEditingSceneId(
-                          editingSceneId === scene.id ? null : scene.id
-                        )}
-                        className="text-primary-500 text-sm hover:text-primary-600"
-                      >
-                        {editingSceneId === scene.id ? '收起' : '编辑'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteScene(scene.id)}
-                        className="text-error-500 text-sm hover:text-error-600"
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </div>
-
-                  {editingSceneId === scene.id ? (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">场景名称</label>
-                        <input
-                          type="text"
-                          value={tempScene[scene.id]?.name ?? scene.name}
-                          onChange={(e) => handleTempSceneChange(scene.id, 'name', e.target.value)}
-                          className="input-field w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1">场景描述</label>
-                        <textarea
-                          value={tempScene[scene.id]?.description ?? scene.description}
-                          onChange={(e) => handleTempSceneChange(scene.id, 'description', e.target.value)}
-                          className="input-field w-full"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => handleSaveScene(scene.id)}
-                          disabled={savingScene === scene.id}
-                          className={`btn-primary ${
-                            savingScene === scene.id
-                              ? 'opacity-50 cursor-not-allowed'
-                              : ''
-                          }`}
-                        >
-                          {savingScene === scene.id ? '保存中...' : '保存'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{scene.description}</p>
-                  )}
-                </div>
-              ))}
-              {(!project.scenes || project.scenes.length === 0) && (
-                <p className="text-light-text-secondary dark:text-dark-text-secondary">还没有场景，点击上方按钮自动提取</p>
-              )}
-            </div>
-          </div>
+          <SceneManager
+            projectId={id || ''}
+            scenes={project.scenes || []}
+            onExtractScenes={handleExtractScenes}
+            extractingScenes={extractingScenes}
+            onOpenPromptManager={(type) => {
+              setProjectPromptManagerType(type);
+              setShowProjectPromptManager(true);
+            }}
+            onSaveScene={handleSaveScene}
+            savingScene={savingScene}
+            tempScene={tempScene}
+            onTempSceneChange={handleTempSceneChange}
+            onDeleteScene={handleDeleteScene}
+          />
         )}
 
-        {/* Step 3: 分镜编辑 (剧本拆分 + 角色场景关联) */}
         {currentStep === 3 && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">分镜列表 ({project.storyboards.length})</h3>
-              <div className="flex items-center gap-2">
-                {/* 分镜模式选择 */}
-                <select
-                  value={splitMode}
-                  onChange={(e) => setSplitMode(e.target.value as 'fixed' | 'ai')}
-                  disabled={splittingStoryboards}
-                  className="input-field text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="fixed">固定行数</option>
-                  <option value="ai">AI自动分镜</option>
-                </select>
-
-                {/* 固定行数模式的行数选择 */}
-                {splitMode === 'fixed' && (
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={customLinesPerStoryboard}
-                    onChange={(e) => setCustomLinesPerStoryboard(parseInt(e.target.value) || 1)}
-                    disabled={splittingStoryboards}
-                    className="input-field text-sm w-20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder="行数"
-                  />
-                )}
-
-                {/* AI自动分镜的选项 */}
-                {splitMode === 'ai' && (
-                  <>
-                    <label className="flex items-center gap-1 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={autoMatchCharacters}
-                        onChange={(e) => setAutoMatchCharacters(e.target.checked)}
-                        disabled={splittingStoryboards}
-                        className="rounded"
-                      />
-                      自动匹配角色
-                    </label>
-                    <label className="flex items-center gap-1 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={autoMatchScenes}
-                        onChange={(e) => setAutoMatchScenes(e.target.checked)}
-                        disabled={splittingStoryboards}
-                        className="rounded"
-                      />
-                      自动匹配场景
-                    </label>
-                  </>
-                )}
-
-                <button
-                  onClick={handleSplitStoryboard}
-                  disabled={splittingStoryboards}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {splittingStoryboards ? '正在拆分分镜...' : '自动拆分剧本'}
-                </button>
-              </div>
-            </div>
-            {splittingStoryboards && (
-              <div className="mb-4">
-                <div className="flex justify-between text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                  <span>{splitStatusText || '进度'}</span>
-                  <span>{splitProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${splitProgress}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-            <div className="space-y-4 max-h-[700px] overflow-y-auto">
-              {project.storyboards.map((sb) => (
-                <div key={sb.id} className="border border-light-border dark:border-dark-border rounded-lg p-4">
-                  <div className="flex justify-between">
-                    <span className="font-semibold">分镜 {sb.index + 1}</span>
-                  </div>
-                  <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mt-2">{sb.sceneDescription}</p>
-                  {sb.dialogue && (
-                    <p className="text-sm text-blue-600 mt-1">台词: {sb.dialogue}</p>
-                  )}
-                  {sb.narration && (
-                    <p className="text-sm text-green-600 mt-1">旁白: {sb.narration}</p>
-                  )}
-
-                  {/* 场景选择 */}
-                  <div className="mt-3">
-                    <label className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1 block">关联场景</label>
-                    <select
-                      value={sb.sceneId || ''}
-                      onChange={(e) => handleStoryboardSceneChange(sb.id, e.target.value || null)}
-                      className="input-field w-full text-sm"
-                    >
-                      <option value="">-- 无场景 --</option>
-                      {(project.scenes || []).map((scene) => (
-                        <option key={scene.id} value={scene.id}>
-                          {scene.name}
-                        </option>
-                      ))}
-                    </select>
-                    {sb.sceneId && (
-                      <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mt-1">
-                        {(project.scenes || []).find(s => s.id === sb.sceneId)?.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* 角色选择 */}
-                  <div className="mt-3">
-                    <label className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-1 block">关联角色</label>
-                    <div className="flex flex-wrap gap-2">
-                      {project.characters.map((char) => {
-                        const isSelected = sb.characterIds?.includes(char.id) || false;
-                        return (
-                          <button
-                            key={char.id}
-                            onClick={() => {
-                              const newCharIds = isSelected
-                                ? (sb.characterIds || []).filter(id => id !== char.id)
-                                : [...(sb.characterIds || []), char.id];
-                              handleStoryboardCharactersChange(sb.id, newCharIds);
-                            }}
-                            className={`px-3 py-1 rounded-full text-sm ${
-                              isSelected
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-light-divider dark:bg-dark-divider text-light-text-secondary dark:text-dark-text-secondary hover:bg-gray-200'
-                            }`}
-                          >
-                            {char.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {project.storyboards.length === 0 && (
-                <p className="text-light-text-secondary dark:text-dark-text-secondary">还没有分镜，点击上方按钮自动拆分</p>
-              )}
-            </div>
-          </div>
+          <StoryboardSplitter
+            projectId={id || ''}
+            storyboards={project.storyboards}
+            characters={project.characters}
+            scenes={project.scenes || []}
+            onSplitStoryboard={handleSplitStoryboard}
+            splittingStoryboards={splittingStoryboards}
+            splitProgress={splitProgress}
+            splitStatusText={splitStatusText}
+            onStoryboardSceneChange={handleStoryboardSceneChange}
+            onStoryboardCharactersChange={handleStoryboardCharactersChange}
+          />
         )}
 
-        {/* Step 4: 提示词推理 */}
         {currentStep === 4 && (
           <StoryboardPromptInference
             projectId={id || ''}
             storyboards={project.storyboards}
             characters={project.characters}
-            scenes={project.scenes}
+            scenes={project.scenes || []}
             onGeneratePrompts={handleInferenceGeneratePrompts}
             generatingPrompts={generatingPrompts}
             onUpdatePrompt={handleUpdatePrompt}
@@ -1431,13 +816,12 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           />
         )}
 
-        {/* Step 5: 图片生成 */}
         {currentStep === 5 && (
           <StoryboardImageGeneration
             projectId={id || ''}
             storyboards={project.storyboards}
             characters={project.characters}
-            scenes={project.scenes}
+            scenes={project.scenes || []}
             imagePromptTemplates={imagePromptTemplates}
             onGenerateImages={handleGenerateImages}
             onGenerateSingleImage={handleGenerateSingleImage}
@@ -1449,282 +833,43 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
           />
         )}
 
-        {/* Step 6: 导出交付 */}
         {currentStep === 6 && (
           <div>
-            {/* 配音生成部分 */}
-            {project.storyboards.length > 0 && (
-              <div className="mb-8">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-                  <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">配音生成</h3>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">批量设置音色:</label>
-                      <select
-                        value={bulkVoice}
-                        onChange={(e) => setBulkVoice(e.target.value)}
-                        className="input-field text-sm"
-                      >
-                        <option value="">-- 选择音色 --</option>
-                        {TTS_VOICES.map((voice) => (
-                          <option key={voice.value} value={voice.value}>
-                            {voice.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => handleApplyBulkVoiceToStoryboards(bulkVoice)}
-                      disabled={!bulkVoice}
-                      className="bg-warning-500 hover:bg-warning-600 text-white px-4 py-2 rounded-md disabled:opacity-50 text-sm"
-                    >
-                      应用到所有分镜
-                    </button>
-                    <button
-                      onClick={handleGenerateAudios}
-                      disabled={polling}
-                      className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {polling ? '生成中...' : '批量生成配音'}
-                    </button>
-                  </div>
-                </div>
-                {polling && generationStatus?.audio && generationStatus.audio.total > 0 && (
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-light-text-secondary dark:text-dark-text-secondary mb-1">
-                      <span>配音生成进度</span>
-                      <span>{generationStatus.audio.completed}/{generationStatus.audio.total}</span>
-                    </div>
-                    <div className="w-full bg-light-divider dark:bg-dark-divider rounded-full h-3">
-                      <div
-                        className="bg-success-500 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.round((generationStatus.audio.completed / generationStatus.audio.total) * 100)}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                  {project.storyboards.map((sb) => (
-                    <div key={sb.id} className="border border-light-border dark:border-dark-border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="font-semibold text-light-text-primary dark:text-dark-text-primary">分镜 {sb.index + 1}</span>
-                        <div className="flex items-center gap-2">
-                          {sb.audioDuration > 0 && (
-                            <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                              ({sb.audioDuration.toFixed(1)}秒)
-                            </span>
-                          )}
-                          <span className={`text-sm px-2 py-1 rounded ${
-                            sb.audioStatus === 'completed' ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-300' :
-                            sb.audioStatus === 'generating' ? 'bg-secondary-100 text-secondary-700 dark:bg-secondary-500/10 dark:text-secondary-300' :
-                            sb.audioStatus === 'failed' ? 'bg-error-100 text-error-700 dark:bg-error-500/10 dark:text-error-300' :
-                            'bg-light-divider text-light-text-secondary dark:bg-dark-divider dark:text-dark-text-secondary'
-                          }`}>
-                            {sb.audioStatus === 'completed' ? '已完成' :
-                             sb.audioStatus === 'generating' ? '生成中' :
-                             sb.audioStatus === 'failed' ? '失败' : '待生成'}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary mb-2">{sb.sceneDescription}</p>
-                      {sb.narration && (
-                        <p className="text-sm text-success-600 dark:text-success-400 mb-1">
-                          <span className="font-medium">旁白:</span> {sb.narration}
-                        </p>
-                      )}
-                      {sb.dialogue && (
-                        <p className="text-sm text-primary-600 dark:text-primary-400 mb-2">
-                          <span className="font-medium">台词:</span> {sb.dialogue}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-light-border dark:border-dark-border">
-                        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                          <label className="text-xs font-medium text-light-text-secondary dark:text-dark-text-secondary">音色:</label>
-                          <select
-                            value={sb.ttsConfig?.voice || ''}
-                            onChange={(e) => handleStoryboardVoiceChange(sb.id, e.target.value)}
-                            className="input-field text-xs flex-1"
-                          >
-                            <option value="">-- 使用角色配置 --</option>
-                            {TTS_VOICES.map((voice) => (
-                              <option key={voice.value} value={voice.value}>
-                                {voice.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        {sb.audioStatus === 'completed' && sb.audioPath ? (
-                          <audio controls className="h-10 w-48 sm:w-64">
-                            <source src={`/data/projects/${id}/${sb.audioPath}`} />
-                          </audio>
-                        ) : (
-                          <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary w-32 sm:w-48">
-                            状态: {sb.audioStatus}
-                          </div>
-                        )}
-                        {sb.audioStatus !== 'generating' && (
-                          <button
-                            onClick={() => handleGenerateSingleAudio(sb.id)}
-                            className="bg-success-500 hover:bg-success-600 text-white px-3 py-1 rounded text-sm"
-                          >
-                            {sb.audioStatus === 'completed' ? '重新生成' : '生成配音'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 导出剪映部分 */}
-            <div className="border-t border-light-border dark:border-dark-border pt-8">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-light-text-primary dark:text-dark-text-primary">导出剪映草稿</h3>
-                <button
-                  onClick={handleExportJianying}
-                  disabled={exportingJianying}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {exportingJianying ? '导出中...' : '导出到剪映'}
-                </button>
-              </div>
-
-              {exportResult && (
-                <div className={`mb-6 p-4 rounded-md ${exportResult.success ? 'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300' : 'bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-300'}`}>
-                  <pre className="whitespace-pre-wrap text-sm">{exportResult.message}</pre>
-                </div>
-              )}
-
-              <div className="bg-light-divider dark:bg-dark-divider rounded-lg p-6">
-                <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">导出说明</h4>
-                <ul className="space-y-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
-                  <li>• 将项目中的所有图片和音频导出为剪映草稿</li>
-                  <li>• 图片和音频会自动放置在对应的轨道上</li>
-                  <li>• 每个分镜的时长根据音频长度自动设置</li>
-                  <li>• 导出前请确保已配置剪映草稿保存路径（在设置页面）</li>
-                  <li>• 导出后可以在剪映中打开草稿进行进一步编辑</li>
-                </ul>
-              </div>
-
-              <div className="mt-6">
-                <h4 className="font-medium text-light-text-primary dark:text-dark-text-primary mb-4">项目预览 ({project.storyboards.length} 个分镜)</h4>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {project.storyboards.map((sb) => (
-                    <div key={sb.id} className="flex items-center gap-4 border border-light-border dark:border-dark-border rounded-lg p-3">
-                      <div className="w-24 h-16 bg-light-divider dark:bg-dark-divider rounded flex items-center justify-center flex-shrink-0">
-                        {sb.imageStatus === 'completed' && sb.imagePath ? (
-                          <img
-                            src={`/data/projects/${id}/${sb.imagePath}`}
-                            alt=""
-                            className="w-full h-full object-cover rounded"
-                          />
-                        ) : (
-                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                            {sb.imageStatus === 'generating' ? '生成中' :
-                             sb.imageStatus === 'failed' ? '失败' : '无图'}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-light-text-primary dark:text-dark-text-primary">分镜 {sb.index + 1}</div>
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary truncate">{sb.sceneDescription}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {sb.audioStatus === 'completed' && sb.audioDuration > 0 && (
-                          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                            {sb.audioDuration.toFixed(1)}s
-                          </span>
-                        )}
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          sb.audioStatus === 'completed' && sb.imageStatus === 'completed'
-                            ? 'bg-success-100 text-success-700 dark:bg-success-500/10 dark:text-success-300'
-                            : 'bg-warning-100 text-warning-700 dark:bg-warning-500/10 dark:text-warning-300'
-                        }`}>
-                          {sb.audioStatus === 'completed' && sb.imageStatus === 'completed' ? '就绪' : '需完成'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <AudioGenerator
+              projectId={id || ''}
+              storyboards={project.storyboards}
+              characters={project.characters}
+              polling={polling}
+              generationStatus={generationStatus?.audio}
+              onGenerateAudios={handleGenerateAudios}
+              onGenerateSingleAudio={handleGenerateSingleAudio}
+              onStoryboardVoiceChange={handleStoryboardVoiceChange}
+            />
+            <JianyingExporter
+              projectId={id || ''}
+              storyboards={project.storyboards}
+              exportingJianying={exportingJianying}
+              exportResult={exportResult}
+              onExportJianying={handleExportJianying}
+            />
           </div>
         )}
       </div>
 
-      {/* 角色测试生图弹窗 */}
-      {showCharacterTestImage && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card max-w-4xl w-full max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-light-divider dark:border-dark-divider flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg text-light-text-primary dark:text-dark-text-primary">
-                  角色测试生图
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowCharacterTestImage(null);
-                    setCharacterTestImageUrl(null);
-                  }}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <div className="p-4 overflow-y-auto flex-1">
-              <div className="mb-4">
-                <label className="input-label">提示词</label>
-                <textarea
-                  value={characterTestImagePrompt}
-                  onChange={(e) => setCharacterTestImagePrompt(e.target.value)}
-                  className="input-field w-full h-24 resize-none"
-                />
-              </div>
-              {characterTestImageUrl && (
-                <div className="mb-4">
-                  <label className="input-label">生成结果</label>
-                  <div className="flex justify-center">
-                    <img
-                      src={characterTestImageUrl}
-                      alt="Test"
-                      className="max-w-full max-h-[60vh] w-auto h-auto rounded-lg"
-                      onError={handleCharacterTestImageError}
-                      key={characterTestImageUrl}
-                    />
-                  </div>
-                </div>
-              )}
-              {characterTestImageLoading && (
-                <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary">
-                  生成中...
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-light-divider dark:border-dark-divider flex gap-2 justify-end flex-shrink-0">
-              <button
-                onClick={() => {
-                  setShowCharacterTestImage(null);
-                  setCharacterTestImageUrl(null);
-                }}
-                className="btn-secondary"
-              >
-                关闭
-              </button>
-              <button
-                onClick={handleGenerateCharacterTestImage}
-                disabled={characterTestImageLoading || !characterTestImagePrompt.trim()}
-                className="btn-primary"
-              >
-                {characterTestImageLoading ? '生成中...' : '生成图片'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CharacterTestImageModal
+        isOpen={!!showCharacterTestImage}
+        onClose={() => {
+          setShowCharacterTestImage(null);
+          setCharacterTestImageUrl(null);
+        }}
+        characterTestImagePrompt={characterTestImagePrompt}
+        onCharacterTestImagePromptChange={setCharacterTestImagePrompt}
+        characterTestImageUrl={characterTestImageUrl}
+        characterTestImageLoading={characterTestImageLoading}
+        onGenerateCharacterTestImage={handleGenerateCharacterTestImage}
+        onCharacterTestImageError={handleCharacterTestImageError}
+      />
 
-      {/* 项目提示词管理弹窗 */}
       <ProjectPromptManager
         isOpen={showProjectPromptManager}
         onClose={() => setShowProjectPromptManager(false)}
