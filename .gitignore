@@ -38,6 +38,7 @@ dist/
 # Data
 data/projects/
 data/tmp/
+backend/data/
 *.json
 !*.example.json
 !data/style_prompts/_mapping.json
