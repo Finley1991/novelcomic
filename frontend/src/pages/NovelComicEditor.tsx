@@ -730,18 +730,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <button
-            onClick={() => navigate('/')}
-            className="text-primary-500 hover:text-primary-600 mr-4"
-          >
-            ← 返回
-          </button>
-          <h2 className="text-2xl font-bold inline text-light-text-primary dark:text-dark-text-primary">{project.name}</h2>
-        </div>
-      </div>
-
       <WizardSteps
         steps={getWizardSteps()}
         currentStep={currentStep}
