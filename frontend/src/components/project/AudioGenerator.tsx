@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { Character, Storyboard } from '../../services/api';
+import { Storyboard } from '../../services/api';
 import { TTS_VOICES } from '../../constants/ttsVoices';
 
 interface AudioGeneratorProps {
   projectId: string;
   storyboards: Storyboard[];
-  characters: Character[];
   polling: boolean;
   generationStatus: { completed: number; total: number } | null;
   onGenerateAudios: () => Promise<void>;
   onGenerateSingleAudio: (storyboardId: string) => Promise<void>;
   onStoryboardVoiceChange: (storyboardId: string, voice: string) => Promise<void>;
+  onApplyBulkVoice?: (voice: string) => Promise<void>;
 }
 
 export const AudioGenerator: React.FC<AudioGeneratorProps> = ({
@@ -21,11 +21,15 @@ export const AudioGenerator: React.FC<AudioGeneratorProps> = ({
   onGenerateAudios,
   onGenerateSingleAudio,
   onStoryboardVoiceChange,
+  onApplyBulkVoice,
 }) => {
   const [bulkVoice, setBulkVoice] = useState<string>('');
 
   const handleApplyBulkVoiceToStoryboards = async () => {
-    // 这个逻辑暂时保留在主组件中
+    if (onApplyBulkVoice && bulkVoice) {
+      await onApplyBulkVoice(bulkVoice);
+      setBulkVoice('');
+    }
   };
 
   return (
@@ -49,7 +53,7 @@ export const AudioGenerator: React.FC<AudioGeneratorProps> = ({
             </select>
           </div>
           <button
-            onClick={() => {}}
+            onClick={handleApplyBulkVoiceToStoryboards}
             disabled={!bulkVoice}
             className="bg-warning-500 hover:bg-warning-600 text-white px-4 py-2 rounded-md disabled:opacity-50 text-sm"
           >

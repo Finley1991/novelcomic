@@ -467,17 +467,22 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
-  const handleSplitStoryboard = async () => {
+  const handleSplitStoryboard = async (options: {
+    splitMode: 'fixed' | 'ai';
+    customLinesPerStoryboard: number;
+    autoMatchCharacters: boolean;
+    autoMatchScenes: boolean;
+  }) => {
     if (!id || !project) return;
     setSplittingStoryboards(true);
     setSplitProgress(0);
     setSplitStatusText('正在拆分剧本...');
     try {
       await storyboardApi.split(id, {
-        split_mode: 'fixed',
-        lines_per_storyboard: 1,
-        auto_match_characters: true,
-        auto_match_scenes: true,
+        split_mode: options.splitMode,
+        lines_per_storyboard: options.customLinesPerStoryboard,
+        auto_match_characters: options.autoMatchCharacters,
+        auto_match_scenes: options.autoMatchScenes,
       });
       setSplitProgress(100);
       setSplitStatusText('完成！');
@@ -696,6 +701,26 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
     }
   };
 
+  const handleApplyBulkVoiceToStoryboards = async (voice: string) => {
+    if (!id || !project) return;
+    try {
+      await Promise.all(
+        project.storyboards.map(sb =>
+          storyboardApi.update(id, sb.id, {
+            ttsConfig: {
+              voice,
+              rate: 1.0,
+              pitch: 0
+            }
+          })
+        )
+      );
+      await loadProject();
+    } catch (error) {
+      console.error('Failed to apply bulk voice:', error);
+    }
+  };
+
   const getWizardSteps = (): WizardStep[] => {
     return wizardStepDefinitions.map((step, index) => ({
       ...step,
@@ -747,7 +772,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
 
         {currentStep === 1 && (
           <CharacterManager
-            projectId={id || ''}
             characters={project.characters}
             onExtractCharacters={handleExtractCharacters}
             extractingCharacters={extractingCharacters}
@@ -755,7 +779,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
               setProjectPromptManagerType(type);
               setShowProjectPromptManager(true);
             }}
-            onUpdateCharacter={() => Promise.resolve()}
             onSaveCharacter={handleSaveCharacter}
             savingCharacter={savingCharacter}
             tempCharacter={tempCharacter}
@@ -788,7 +811,6 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
 
         {currentStep === 3 && (
           <StoryboardSplitter
-            projectId={id || ''}
             storyboards={project.storyboards}
             characters={project.characters}
             scenes={project.scenes || []}
@@ -838,12 +860,12 @@ const NovelComicEditor: React.FC<NovelComicEditorProps> = ({ project: initialPro
             <AudioGenerator
               projectId={id || ''}
               storyboards={project.storyboards}
-              characters={project.characters}
               polling={polling}
               generationStatus={generationStatus?.audio}
               onGenerateAudios={handleGenerateAudios}
               onGenerateSingleAudio={handleGenerateSingleAudio}
               onStoryboardVoiceChange={handleStoryboardVoiceChange}
+              onApplyBulkVoice={handleApplyBulkVoiceToStoryboards}
             />
             <JianyingExporter
               projectId={id || ''}

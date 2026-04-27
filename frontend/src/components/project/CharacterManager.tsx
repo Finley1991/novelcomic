@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { useToast } from '../../hooks/useToast';
 import { Character } from '../../services/api';
 import { TTS_VOICES } from '../../constants/ttsVoices';
 
 interface CharacterManagerProps {
-  projectId: string;
   characters: Character[];
   onExtractCharacters: () => Promise<void>;
   extractingCharacters: boolean;
   onOpenPromptManager: (type: 'character_extraction') => void;
-  onUpdateCharacter: (charId: string, data: Partial<Character>) => Promise<void>;
   onSaveCharacter: (charId: string) => Promise<void>;
   savingCharacter: string | null;
   tempCharacter: { [charId: string]: Partial<Character> };
@@ -26,7 +23,6 @@ export const CharacterManager: React.FC<CharacterManagerProps> = ({
   onExtractCharacters,
   extractingCharacters,
   onOpenPromptManager,
-  onUpdateCharacter,
   onSaveCharacter,
   savingCharacter,
   tempCharacter,

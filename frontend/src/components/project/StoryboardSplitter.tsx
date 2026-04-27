@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { Character, Scene, Storyboard } from '../../services/api';
 
 interface StoryboardSplitterProps {
-  projectId: string;
   storyboards: Storyboard[];
   characters: Character[];
   scenes: Scene[];
-  onSplitStoryboard: () => Promise<void>;
+  onSplitStoryboard: (options: {
+    splitMode: 'fixed' | 'ai';
+    customLinesPerStoryboard: number;
+    autoMatchCharacters: boolean;
+    autoMatchScenes: boolean;
+  }) => Promise<void>;
   splittingStoryboards: boolean;
   splitProgress: number;
   splitStatusText: string;
@@ -29,6 +33,15 @@ export const StoryboardSplitter: React.FC<StoryboardSplitterProps> = ({
   const [customLinesPerStoryboard, setCustomLinesPerStoryboard] = useState(1);
   const [autoMatchCharacters, setAutoMatchCharacters] = useState(true);
   const [autoMatchScenes, setAutoMatchScenes] = useState(true);
+
+  const handleSplit = () => {
+    onSplitStoryboard({
+      splitMode,
+      customLinesPerStoryboard,
+      autoMatchCharacters,
+      autoMatchScenes,
+    });
+  };
 
   return (
     <div>
@@ -84,7 +97,7 @@ export const StoryboardSplitter: React.FC<StoryboardSplitterProps> = ({
           )}
 
           <button
-            onClick={onSplitStoryboard}
+            onClick={handleSplit}
             disabled={splittingStoryboards}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
