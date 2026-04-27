@@ -317,13 +317,13 @@ class StylePromptManager:
     # ===== 测试生图功能 =====
     async def test_generate_image(self, prompt: str) -> str:
         """测试提示词生图，返回文件名"""
-        from core.comfyui import ComfyUIClient
+        from core.comfyui import get_comfyui_client
 
         # 使用简单的通用场景 + 风格提示词
         full_prompt = f"1girl, simple background, {prompt}"
 
         # 生成图片
-        comfyui = ComfyUIClient()
+        comfyui = get_comfyui_client()
         image_data = await comfyui.generate_image(
             prompt=full_prompt,
             width=512,

@@ -322,12 +322,23 @@ class ComfyUINodeInfo(BaseModel):
     fields: List[str]
 
 
+class ComfyUIProvider(str, Enum):
+    LOCAL = "local"
+    RUNNINGHUB = "runninghub"
+
+
+class RunningHubSettings(BaseModel):
+    apiKey: str = "e95835f2b47c49ceb660bdc3f941c0df"
+
+
 class ComfyUISettings(BaseModel):
+    provider: ComfyUIProvider = ComfyUIProvider.LOCAL
     apiUrl: str = "http://8.222.174.34:8188"
     timeout: int = 300
     maxRetries: int = 3
     concurrentLimit: int = 3
     activeWorkflowId: Optional[str] = None
+    runninghub: RunningHubSettings = Field(default_factory=RunningHubSettings)
 
 
 class LLMProvider(str, Enum):

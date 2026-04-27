@@ -22,7 +22,7 @@ from models.schemas import (
 )
 from core.storage import storage
 from core.llm import LLMClient
-from core.comfyui import ComfyUIClient
+from core.comfyui import get_comfyui_client
 from core.tts import TTSClient
 from config import settings
 
@@ -121,7 +121,7 @@ async def generate_single_image(project_id: str, sb_id: str):
                     negative_prompt = f"{negative_prompt}, {char.negativePrompt}"
 
             logger.info(f"Calling ComfyUI for storyboard {sb_id}")
-            comfy_client = ComfyUIClient()
+            comfy_client = get_comfyui_client()
             img_data = await comfy_client.generate_image(
                 prompt=full_prompt,
                 negative_prompt=negative_prompt,

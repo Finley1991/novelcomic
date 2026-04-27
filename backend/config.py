@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     comfyui_timeout: int = 300
     comfyui_max_retries: int = 3
     comfyui_concurrent_limit: int = 1
+    comfyui_provider: str = "local"  # "local" or "runninghub"
+
+    # RunningHub API (Cloud ComfyUI)
+    runninghub_api_key: str = "e95835f2b47c49ceb660bdc3f941c0df"
 
     ollama_api_url: str = "http://8.222.174.34:11434"
     ollama_model: str = "qwen3.5:9b"

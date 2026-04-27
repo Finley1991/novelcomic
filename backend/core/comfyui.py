@@ -1,7 +1,7 @@
 import aiohttp
 from aiohttp import ClientTimeout
 import asyncio
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from copy import deepcopy
 import uuid
 import logging
@@ -12,7 +12,33 @@ from models.schemas import ComfyUINodeMappings, ComfyUIWorkflowParams
 
 logger = logging.getLogger(__name__)
 
-class ComfyUIClient:
+
+class BaseComfyUIClient:
+    """Base class for ComfyUI clients"""
+
+    async def check_connection(self) -> bool:
+        """Check if connection is available"""
+        raise NotImplementedError
+
+    async def generate_image(
+        self,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 30,
+        cfg: float = 7.0,
+        sampler_name: Optional[str] = None,
+        seed: int = 0,
+        workflow_id: Optional[str] = None,
+    ) -> Optional[bytes]:
+        """Generate an image and return the bytes"""
+        raise NotImplementedError
+
+
+class LocalComfyUIClient(BaseComfyUIClient):
+    """Local ComfyUI client"""
+
     def __init__(self, api_url: Optional[str] = None):
         self.api_url = api_url or settings.comfyui_api_url
         self.client_id = str(uuid.uuid4())
@@ -24,7 +50,7 @@ class ComfyUIClient:
                 async with session.get(url, timeout=10) as resp:
                     return resp.status == 200
         except Exception as e:
-            logger.error(f"ComfyUI connection check failed: {e}")
+            logger.error(f"Local ComfyUI connection check failed: {e}")
             return False
 
     @async_retry(retries=settings.comfyui_max_retries, delay=2.0, backoff=2.0)
@@ -159,7 +185,7 @@ class ComfyUIClient:
         cfg: float = 7.0,
         sampler_name: Optional[str] = None,
         seed: int = 0,
-        workflow_id: Optional[str] = None
+        workflow_id: Optional[str] = None,
     ) -> Optional[bytes]:
         from core.storage import storage
 
@@ -220,3 +246,87 @@ class ComfyUIClient:
             waited += poll_interval
 
         raise Exception("Timeout waiting for ComfyUI generation")
+
+
+class RunningHubComfyUIClient(LocalComfyUIClient):
+    """RunningHub cloud ComfyUI client using native proxy API"""
+
+    def __init__(self, api_key: Optional[str] = None):
+        from core.storage import storage
+
+        settings_obj = storage.load_global_settings()
+
+        self.api_key = api_key or settings_obj.comfyui.runninghub.apiKey
+
+        if not self.api_key:
+            raise ValueError("RunningHub API key is required")
+
+        # Use RunningHub proxy URL - works exactly like local ComfyUI
+        # Format: https://www.runninghub.cn/proxy/{api_key}
+        proxy_url = f"https://www.runninghub.cn/proxy/{self.api_key}"
+        self.api_url = proxy_url
+        self.client_id = str(uuid.uuid4())
+
+        logger.info(f"RunningHub client initialized with proxy: {proxy_url}")
+
+
+class ComfyUIClient(BaseComfyUIClient):
+    """Unified ComfyUI client that supports both local and RunningHub"""
+
+    def __init__(self, provider: Optional[str] = None):
+        from core.storage import storage
+
+        settings_obj = storage.load_global_settings()
+        self.provider = provider or settings_obj.comfyui.provider.value
+
+        if self.provider == "runninghub":
+            self._client = RunningHubComfyUIClient()
+        else:
+            self._client = LocalComfyUIClient()
+
+    async def check_connection(self) -> bool:
+        """Check if connection is available"""
+        return await self._client.check_connection()
+
+    async def generate_image(
+        self,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 30,
+        cfg: float = 7.0,
+        sampler_name: Optional[str] = None,
+        seed: int = 0,
+        workflow_id: Optional[str] = None,
+    ) -> Optional[bytes]:
+        """Generate an image and return the bytes"""
+        return await self._client.generate_image(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            width=width,
+            height=height,
+            steps=steps,
+            cfg=cfg,
+            sampler_name=sampler_name,
+            seed=seed,
+            workflow_id=workflow_id,
+        )
+
+
+# Singleton instance
+_comfyui_client: Optional[ComfyUIClient] = None
+
+
+def get_comfyui_client() -> ComfyUIClient:
+    """Get ComfyUI client singleton"""
+    global _comfyui_client
+    if _comfyui_client is None:
+        _comfyui_client = ComfyUIClient()
+    return _comfyui_client
+
+
+def reset_comfyui_client() -> None:
+    """Reset ComfyUI client singleton"""
+    global _comfyui_client
+    _comfyui_client = None

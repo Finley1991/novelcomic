@@ -81,7 +81,16 @@ function NodeMappingField({
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<GlobalSettings>({
     defaultPromptTemplates: {},
-    comfyui: { apiUrl: '', timeout: 300, maxRetries: 3, concurrentLimit: 3 },
+    comfyui: {
+      provider: 'local',
+      apiUrl: '',
+      timeout: 300,
+      maxRetries: 3,
+      concurrentLimit: 3,
+      runninghub: {
+        apiKey: 'e95835f2b47c49ceb660bdc3f941c0df'
+      }
+    },
     llm: {
       provider: 'ollama',
       ollama: { apiUrl: '', model: 'llama3', timeout: 120, maxRetries: 2, chunkSize: 4000 },
@@ -151,6 +160,15 @@ const Settings: React.FC = () => {
       }
       if (!loadedSettings.defaultPromptTemplates) {
         loadedSettings.defaultPromptTemplates = {};
+      }
+      // 确保 comfyui.runninghub 配置存在
+      if (!loadedSettings.comfyui.runninghub) {
+        loadedSettings.comfyui.runninghub = {
+          apiKey: 'e95835f2b47c49ceb660bdc3f941c0df'
+        };
+      }
+      if (!loadedSettings.comfyui.provider) {
+        loadedSettings.comfyui.provider = 'local';
       }
       setSettings(loadedSettings);
     } catch (error) {
@@ -615,15 +633,54 @@ const Settings: React.FC = () => {
           <h3 className="text-lg font-semibold mb-4">ComfyUI 设置</h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">API 地址</label>
-              <input
-                type="text"
-                value={settings.comfyui.apiUrl}
-                onChange={(e) => setSettings({...settings, comfyui: {...settings.comfyui, apiUrl: e.target.value}})}
+              <label className="block text-sm font-medium text-gray-700 mb-1">ComfyUI 提供者</label>
+              <select
+                value={settings.comfyui.provider}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  comfyui: { ...settings.comfyui, provider: e.target.value as 'local' | 'runninghub' }
+                })}
                 className="w-full border rounded-md px-3 py-2"
-                placeholder="http://localhost:8188"
-              />
+              >
+                <option value="local">本地 ComfyUI</option>
+                <option value="runninghub">RunningHub (云端)</option>
+              </select>
             </div>
+
+            {settings.comfyui.provider === 'local' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API 地址</label>
+                <input
+                  type="text"
+                  value={settings.comfyui.apiUrl}
+                  onChange={(e) => setSettings({...settings, comfyui: {...settings.comfyui, apiUrl: e.target.value}})}
+                  className="w-full border rounded-md px-3 py-2"
+                  placeholder="http://localhost:8188"
+                />
+              </div>
+            )}
+
+            {settings.comfyui.provider === 'runninghub' && (
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="font-medium">RunningHub 配置</h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                  <input
+                    type="password"
+                    value={settings.comfyui.runninghub.apiKey}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      comfyui: { ...settings.comfyui, runninghub: { ...settings.comfyui.runninghub, apiKey: e.target.value } }
+                    })}
+                    className="w-full border rounded-md px-3 py-2"
+                    placeholder="你的 RunningHub API Key"
+                  />
+                </div>
+                <p className="text-sm text-gray-500">
+                  RunningHub 使用与本地 ComfyUI 完全兼容的接口，你需要先上传 ComfyUI 工作流（在下方管理），然后就可以使用了！
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

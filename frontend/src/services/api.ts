@@ -374,12 +374,18 @@ export interface ComfyUIWorkflow {
   createdAt: string;
 }
 
+export interface RunningHubSettings {
+  apiKey: string;
+}
+
 export interface ComfyUISettings {
+  provider: 'local' | 'runninghub';
   apiUrl: string;
   timeout: number;
   maxRetries: number;
   concurrentLimit: number;
   activeWorkflowId?: string;
+  runninghub: RunningHubSettings;
 }
 
 export interface OllamaSettings {

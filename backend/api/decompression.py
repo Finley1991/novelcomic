@@ -377,8 +377,8 @@ async def _generate_images_task(project_id: str, force_regenerate: bool):
     if not project or not project.decompressionData:
         return
 
-    from core.comfyui import ComfyUIClient
-    comfyui_client = ComfyUIClient()
+    from core.comfyui import get_comfyui_client
+    comfyui_client = get_comfyui_client()
     proj_dir = Path(settings.data_dir) / "projects" / project_id
     image_dir = proj_dir / "decompression_images"
     image_dir.mkdir(exist_ok=True)
