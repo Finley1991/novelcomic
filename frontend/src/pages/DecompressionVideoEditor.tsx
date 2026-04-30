@@ -1345,7 +1345,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
             {data.imageClips.length === 0 &&
               data.textSegments.length > 0 && (
                 <div className="text-center py-8 text-light-text-secondary dark:text-dark-text-secondary">
-                  点击上方按钮生成图片（每张 15 秒）
+                  点击上方按钮生成图片（每张 7-15 秒随机）
                 </div>
               )}
 
@@ -1409,7 +1409,7 @@ const DecompressionVideoEditor: React.FC<DecompressionVideoEditorProps> = ({
               </h4>
               <ul className="space-y-2 text-sm text-light-text-secondary dark:text-dark-text-secondary">
                 <li>• 将视频素材、图片、音频和字幕导出为剪映草稿</li>
-                <li>• 轨道层级：视频（下层）→ 图片（上层，15秒/张）→ 字幕 → 音频</li>
+                <li>• 轨道层级：视频（下层）→ 图片（上层，7-15秒随机/张）→ 字幕 → 音频</li>
                 <li>• 图片自动应用动效效果</li>
                 <li>• 导出前请确保已配置剪映草稿保存路径（在设置页面）</li>
                 <li>• 导出后可以在剪映中打开草稿进行进一步编辑</li>

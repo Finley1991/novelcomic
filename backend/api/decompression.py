@@ -297,7 +297,7 @@ async def generate_images(project_id: str, request: GenerateDecompressionImagesR
             target_duration = 60.0  # 默认60秒
             logger.warning(f"Using default duration for image generation: {target_duration}s")
 
-    image_count = math.ceil(target_duration / 15) if target_duration > 0 else 0
+    image_count = math.ceil(target_duration / 11) if target_duration > 0 else 0
     if image_count <= 0:
         image_count = 4  # 至少生成4张图片
         logger.warning(f"Using default image count: {image_count}")
@@ -317,17 +317,18 @@ async def generate_images(project_id: str, request: GenerateDecompressionImagesR
             motion.startScale = 1.0 if motion_type == MotionType.ZOOM_OUT else 0.9
             motion.endScale = 1.1 if motion_type == MotionType.ZOOM_IN else 1.0
 
+        duration = random.uniform(7.0, 15.0)
         clip = ImageClip(
             index=i,
             prompt=prompt_text,
-            duration=15.0,
+            duration=duration,
             startTime=current_time,
-            endTime=current_time + 15.0,
+            endTime=current_time + duration,
             motion=motion,
             status=GenerationStatus.PENDING
         )
         image_clips.append(clip)
-        current_time += 15.0
+        current_time += duration
 
     project.decompressionData.imageClips = image_clips
     storage.save_project(project)
