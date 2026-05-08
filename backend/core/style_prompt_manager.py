@@ -258,11 +258,9 @@ class StylePromptManager:
         count: int,
         requirement: str
     ) -> List[str]:
-        """大模型仿写提示词"""
-        from core.ollama import OllamaClient
-        from core.openai_client import OpenAIClient
-        from config import settings
-        from models.schemas import LLMProvider
+        """大模型仿写提示词，使用全局设置中的大模型配置"""
+        from core.storage import storage
+        from core.llm import LLMClient
 
         system_prompt = """你是一个专业的 AI 绘画提示词工程师。
 请根据以下原始提示词，生成 {count} 个类似但不同的提示词。
@@ -281,30 +279,13 @@ class StylePromptManager:
             requirement=requirement or "无额外要求，只要类似但有变化"
         )
 
-        # 根据配置选择使用 Ollama 还是 OpenAI
-        provider = settings.llm.provider if hasattr(settings, 'llm') else LLMProvider.OLLAMA
+        # 从全局设置加载配置
+        settings_obj = storage.load_global_settings()
+        llm_client = LLMClient(settings_obj)
 
-        logger.info(f"Using provider: {provider}, settings.ollama_model: {settings.ollama_model}")
+        logger.info(f"Using LLM provider: {llm_client.provider}")
 
-        if provider == LLMProvider.OPENAI:
-            # 使用 OpenAI
-            openai_settings = settings.llm.openai if hasattr(settings, 'llm') else None
-            client = OpenAIClient(
-                api_key=openai_settings.apiKey if openai_settings else None,
-                base_url=openai_settings.baseUrl if openai_settings else None,
-                model=openai_settings.model if openai_settings else None,
-                proxy=openai_settings.proxy if openai_settings and hasattr(openai_settings, 'proxy') else None
-            )
-        else:
-            # 使用 Ollama，直接硬编码模型名称确保正确
-            client = OllamaClient(
-                api_url=settings.ollama_api_url,
-                model="qwen3.5:9b"
-            )
-
-        logger.info(f"Client model: {client.model}")
-
-        result = await client.generate(
+        result = await llm_client.generate(
             prompt=user_prompt,
             system_prompt=""
         )
@@ -316,14 +297,14 @@ class StylePromptManager:
 
     # ===== 测试生图功能 =====
     async def test_generate_image(self, prompt: str) -> str:
-        """测试提示词生图，返回文件名"""
-        from core.comfyui import get_comfyui_client
+        """测试提示词生图，返回文件名，使用全局设置中的ComfyUI配置"""
+        from core.comfyui import ComfyUIClient
 
         # 使用简单的通用场景 + 风格提示词
         full_prompt = f"1girl, simple background, {prompt}"
 
-        # 生成图片
-        comfyui = get_comfyui_client()
+        # 每次创建新的客户端实例，确保使用最新的全局设置
+        comfyui = ComfyUIClient()
         image_data = await comfyui.generate_image(
             prompt=full_prompt,
             width=512,

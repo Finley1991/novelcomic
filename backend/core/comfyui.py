@@ -282,7 +282,8 @@ class ComfyUIClient(BaseComfyUIClient):
         if self.provider == "runninghub":
             self._client = RunningHubComfyUIClient()
         else:
-            self._client = LocalComfyUIClient()
+            # 使用全局设置中的 apiUrl，而不是 config.py 的默认值
+            self._client = LocalComfyUIClient(api_url=settings_obj.comfyui.apiUrl)
 
     async def check_connection(self) -> bool:
         """Check if connection is available"""

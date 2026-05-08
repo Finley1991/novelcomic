@@ -42,6 +42,8 @@ backend/data/
 *.json
 !*.example.json
 !data/style_prompts/_mapping.json
+!frontend/package.json
+!frontend/package-lock.json
 
 # IDE
 .vscode/

@@ -110,6 +110,10 @@ class LLMClient:
             global_settings
         )
 
+    async def generate(self, prompt: str, system_prompt: str = "") -> str:
+        """Generate text using the configured LLM provider"""
+        return await self._client.generate(prompt, system_prompt)
+
     async def test_connection(self) -> dict:
         """Test the LLM connection with a simple prompt"""
         test_prompt = "请用一句话介绍你自己。"
