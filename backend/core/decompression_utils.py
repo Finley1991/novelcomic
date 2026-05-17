@@ -94,35 +94,37 @@ class VideoScanner:
         return videos
 
     def select_videos_for_duration(self, video_dir: Path, target_duration: float) -> List[Dict]:
-        """选择视频直到达到目标时长（添加缓冲时间确保足够）"""
+        """选择视频直到达到目标时长（每个视频最多选一次，不重复）"""
         videos = self.scan_videos(video_dir)
         if not videos:
             return []
 
+        # 随机打乱，每个视频最多用一次
+        shuffled = videos.copy()
+        random.shuffle(shuffled)
+
         selected = []
         current_duration = 0.0
-        used_indices = set()
-        video_list = videos.copy()
 
         # 添加5秒缓冲时间，确保视频时长足够覆盖音频
         buffer_duration = 5.0
         target_with_buffer = target_duration + buffer_duration
 
-        while current_duration < target_with_buffer:
-            available = [v for i, v in enumerate(video_list) if i not in used_indices]
+        for video in shuffled:
+            if current_duration >= target_with_buffer:
+                break
 
-            if not available:
-                used_indices.clear()
-                random.shuffle(video_list)
-                available = video_list
-
-            video = random.choice(available)
-            idx = video_list.index(video)
-            used_indices.add(idx)
+            # 首次扫描时 duration 为默认值 30.0，此时读取真实时长
+            if video["duration"] == 30.0:
+                file_path = Path(video["filePath"])
+                real_duration = self.get_video_duration(file_path)
+                if real_duration > 0:
+                    video["duration"] = real_duration
 
             selected.append(video)
             current_duration += video["duration"]
 
+        logger.info(f"选择了 {len(selected)} 个视频素材，总时长 {current_duration:.1f}s")
         return selected
 
 

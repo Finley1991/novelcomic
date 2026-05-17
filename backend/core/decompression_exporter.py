@@ -183,66 +183,88 @@ class DecompressionJianyingExporter:
 
         # 复制视频素材
         for clip in data.videoClips:
+            if not clip.filePath:
+                logger.warning(f"视频素材 {clip.id} 的 filePath 为空，跳过")
+                continue
             src_video = Path(clip.filePath)
-            if src_video.exists():
+            if not src_video.exists():
+                logger.warning(f"视频源文件不存在，跳过: {src_video}")
+                continue
+            try:
                 ext = src_video.suffix or ".mp4"
                 dst_video = video_dir / f"{clip.id}{ext}"
                 shutil.copy2(src_video, dst_video)
                 materials_map[clip.id] = {"video": f"video/{clip.id}{ext}"}
                 logger.debug(f"已复制视频: {src_video} -> {dst_video}")
+            except Exception as e:
+                logger.warning(f"复制视频文件失败: {src_video}, 错误: {e}")
 
         # 复制图片素材
         for clip in data.imageClips:
-            if clip.imagePath:
-                src_img = project_dir / clip.imagePath
-                if src_img.exists():
-                    ext = src_img.suffix or ".png"
-                    dst_img = video_dir / f"{clip.id}{ext}"
-                    shutil.copy2(src_img, dst_img)
-                    if clip.id not in materials_map:
-                        materials_map[clip.id] = {}
-                    materials_map[clip.id]["image"] = f"video/{clip.id}{ext}"
-                    logger.debug(f"已复制图片: {src_img} -> {dst_img}")
+            if not clip.imagePath:
+                continue
+            src_img = project_dir / clip.imagePath
+            if not src_img.exists():
+                logger.warning(f"图片源文件不存在，跳过: {src_img}")
+                continue
+            try:
+                ext = src_img.suffix or ".png"
+                dst_img = video_dir / f"{clip.id}{ext}"
+                shutil.copy2(src_img, dst_img)
+                if clip.id not in materials_map:
+                    materials_map[clip.id] = {}
+                materials_map[clip.id]["image"] = f"video/{clip.id}{ext}"
+                logger.debug(f"已复制图片: {src_img} -> {dst_img}")
+            except Exception as e:
+                logger.warning(f"复制图片文件失败: {src_img}, 错误: {e}")
 
         # 复制音频素材
         for clip in data.audioClips:
-            if clip.audioPath:
-                src_audio = project_dir / clip.audioPath
-                if src_audio.exists():
-                    ext = src_audio.suffix or ".wav"
-                    dst_audio = audio_dir / f"{clip.id}{ext}"
-                    shutil.copy2(src_audio, dst_audio)
-                    if clip.id not in materials_map:
-                        materials_map[clip.id] = {}
-                    materials_map[clip.id]["audio"] = f"audio/{clip.id}{ext}"
-                    logger.debug(f"已复制音频: {src_audio} -> {dst_audio}")
+            if not clip.audioPath:
+                continue
+            src_audio = project_dir / clip.audioPath
+            if not src_audio.exists():
+                logger.warning(f"音频源文件不存在，跳过: {src_audio}")
+                continue
+            try:
+                ext = src_audio.suffix or ".wav"
+                dst_audio = audio_dir / f"{clip.id}{ext}"
+                shutil.copy2(src_audio, dst_audio)
+                if clip.id not in materials_map:
+                    materials_map[clip.id] = {}
+                materials_map[clip.id]["audio"] = f"audio/{clip.id}{ext}"
+                logger.debug(f"已复制音频: {src_audio} -> {dst_audio}")
+            except Exception as e:
+                logger.warning(f"复制音频文件失败: {src_audio}, 错误: {e}")
 
         return materials_map
 
     def _add_video_clips(self, script, video_clips, materials_map, draft, draft_dir: Path, trange, target_duration_us: int = 0):
-        """添加视频素材到轨道
-
-        Args:
-            target_duration_us: 目标总时长（微秒），如果大于0则循环添加视频直到达到此时长
-        """
+        """添加视频素材到轨道（优先使用不重复的视频，不够再循环）"""
         current_start_us = 0
-        clip_index = 0
-        video_count = len(video_clips)
 
         # 先加载所有视频素材并获取它们的时长
         video_materials = []
         for clip in video_clips:
             clip_map = materials_map.get(clip.id, {})
             if "video" not in clip_map:
+                logger.warning(f"视频素材 {clip.id} 未在 materials_map 中找到，跳过")
                 continue
 
             img_path = str(draft_dir / clip_map["video"])
-            img_material = draft.VideoMaterial(img_path)
-            script.add_material(img_material)
+            try:
+                img_material = draft.VideoMaterial(img_path)
+                script.add_material(img_material)
+            except Exception as e:
+                logger.warning(f"加载视频素材失败: {img_path}, 错误: {e}")
+                continue
 
             material_duration_us = img_material.duration
-            use_duration_us = material_duration_us - 10000  # 减去10ms余量
-            use_duration_us = max(use_duration_us, 100000)  # 最少0.1秒
+            if material_duration_us <= 0:
+                logger.warning(f"视频素材时长为0或无法读取，跳过: {img_path}")
+                continue
+
+            use_duration_us = max(material_duration_us - 10000, 100000)
 
             video_materials.append({
                 "material": img_material,
@@ -251,88 +273,115 @@ class DecompressionJianyingExporter:
             })
 
         if not video_materials:
-            logger.warning("没有可用的视频素材")
+            logger.warning("没有可用的视频素材，跳过视频轨道")
             return
 
-        logger.info(f"已加载 {len(video_materials)} 个视频素材")
+        total_available_us = sum(v["duration"] for v in video_materials)
+        need_loop = target_duration_us > 0 and total_available_us < target_duration_us
+        logger.info(f"已加载 {len(video_materials)} 个视频素材，总可用时长 {total_available_us / 1_000_000:.2f}s")
 
-        # 循环添加视频素材直到达到目标时长
-        while target_duration_us == 0 or current_start_us < target_duration_us:
-            video_info = video_materials[clip_index % len(video_materials)]
-            img_material = video_info["material"]
-            use_duration_us = video_info["duration"]
-            img_path = video_info["path"]
+        if need_loop:
+            logger.warning(f"视频素材总时长 ({total_available_us / 1_000_000:.2f}s) 不足目标 ({target_duration_us / 1_000_000:.2f}s)，将循环复用")
 
-            # 如果是最后一个片段且超过目标时长，裁剪它
-            remaining_duration = target_duration_us - current_start_us
-            if target_duration_us > 0 and remaining_duration < use_duration_us:
-                use_duration_us = remaining_duration
-                logger.info(f"裁剪最后一个视频片段到 {use_duration_us / 1_000_000:.2f}s")
-
-            logger.info(f"视频素材: {img_path}")
-            logger.info(f"  使用时长: {use_duration_us / 1_000_000:.2f}s")
-            logger.info(f"  开始时间: {current_start_us / 1_000_000:.2f}s")
-
-            # 显式指定 source_timerange 和 target_timerange
-            source_timerange = draft.Timerange(0, use_duration_us)
-            target_timerange = draft.Timerange(current_start_us, use_duration_us)
-
+        def _add_one_video(video_info, use_dur, start_us):
+            """添加一个视频片段到轨道"""
+            source_timerange = trange(start=0, duration=use_dur)
+            target_timerange = trange(start=start_us, duration=use_dur)
             video_seg = draft.VideoSegment(
-                img_material,
+                video_info["material"],
                 target_timerange,
                 source_timerange=source_timerange,
                 speed=1.0
             )
             script.add_segment(video_seg, "video_track")
+            logger.info(f"视频素材: {video_info['path']}, {use_dur / 1_000_000:.2f}s @ {start_us / 1_000_000:.2f}s")
 
-            # 更新下一个片段的开始时间
-            current_start_us += use_duration_us
-            clip_index += 1
-
-            # 如果没有目标时长，只添加一遍就退出
-            if target_duration_us == 0 and clip_index >= len(video_materials):
+        # 第一轮：每个视频用一次，不重复
+        for video_info in video_materials:
+            if target_duration_us > 0 and current_start_us >= target_duration_us:
                 break
+
+            use_duration_us = video_info["duration"]
+            remaining = target_duration_us - current_start_us
+            if target_duration_us > 0 and remaining < use_duration_us:
+                use_duration_us = remaining
+                logger.info(f"裁剪末尾视频片段到 {use_duration_us / 1_000_000:.2f}s")
+
+            _add_one_video(video_info, use_duration_us, current_start_us)
+            current_start_us += use_duration_us
+
+        # 如果还不够，循环复用直到填满
+        round_num = 1
+        while target_duration_us > 0 and current_start_us < target_duration_us and round_num < 100:
+            round_num += 1
+            logger.info(f"视频素材不足，第 {round_num} 轮循环复用")
+            for video_info in video_materials:
+                if current_start_us >= target_duration_us:
+                    break
+                use_duration_us = video_info["duration"]
+                remaining = target_duration_us - current_start_us
+                if remaining < use_duration_us:
+                    use_duration_us = remaining
+
+                _add_one_video(video_info, use_duration_us, current_start_us)
+                current_start_us += use_duration_us
 
         logger.info(f"视频轨道总时长: {current_start_us / 1_000_000:.2f}s")
 
     def _add_image_clips(self, script, image_clips, materials_map, draft, draft_dir: Path, trange):
         """添加图片素材到上层轨道"""
+        try:
+            from src.pyJianYingDraft.keyframe import KeyframeProperty
+        except ImportError:
+            KeyframeProperty = None
+            logger.warning("无法导入 KeyframeProperty，图片动效将被跳过")
+
         for clip in image_clips:
             clip_map = materials_map.get(clip.id, {})
             if "image" not in clip_map:
+                logger.warning(f"图片素材 {clip.id} 未在 materials_map 中找到，跳过")
                 continue
 
             img_path = str(draft_dir / clip_map["image"])
-            img_material = draft.VideoMaterial(img_path)
-            script.add_material(img_material)
+            try:
+                img_material = draft.VideoMaterial(img_path)
+                script.add_material(img_material)
+            except Exception as e:
+                logger.warning(f"加载图片素材失败: {img_path}, 错误: {e}")
+                continue
 
             duration_us = int(clip.duration * 1_000_000)
             start_us = int(clip.startTime * 1_000_000)
-            material_duration_us = img_material.duration
 
-            # 图片素材时长通常很大（10800000000us = 3小时）
-            # 保持目标时长不变，source_timerange 也用同样时长
+            if duration_us <= 0:
+                logger.warning(f"图片素材时长为0，跳过: {img_path}")
+                continue
+
             source_duration_us = duration_us
 
             logger.info(f"图片素材: {img_path}")
-            logger.info(f"  素材时长: {material_duration_us}us")
-            logger.info(f"  使用时长: {duration_us}us")
+            logger.info(f"  使用时长: {duration_us}us, 开始时间: {start_us}us")
 
-            # 显式指定 source_timerange 和 speed=1.0
-            source_timerange = draft.Timerange(0, source_duration_us)
-            target_timerange = draft.Timerange(start_us, duration_us)
+            try:
+                source_timerange = trange(start=0, duration=source_duration_us)
+                target_timerange = trange(start=start_us, duration=duration_us)
 
-            video_seg = draft.VideoSegment(
-                img_material,
-                target_timerange,
-                source_timerange=source_timerange,
-                speed=1.0
-            )
-            # 添加关键帧动画：从140%缩放（1.4）到100%缩放（1.0）
-            from src.pyJianYingDraft.keyframe import KeyframeProperty
-            video_seg.add_keyframe(KeyframeProperty.uniform_scale, 0, 1.4)
-            video_seg.add_keyframe(KeyframeProperty.uniform_scale, duration_us, 1.0)
-            script.add_segment(video_seg, "image_track")
+                video_seg = draft.VideoSegment(
+                    img_material,
+                    target_timerange,
+                    source_timerange=source_timerange,
+                    speed=1.0
+                )
+                # 添加关键帧动画：从140%缩放（1.4）到100%缩放（1.0）
+                if KeyframeProperty is not None:
+                    try:
+                        video_seg.add_keyframe(KeyframeProperty.uniform_scale, 0, 1.4)
+                        video_seg.add_keyframe(KeyframeProperty.uniform_scale, duration_us, 1.0)
+                    except Exception as e:
+                        logger.warning(f"添加关键帧失败: {e}，继续添加图片素材")
+                script.add_segment(video_seg, "image_track")
+            except Exception as e:
+                logger.warning(f"添加图片素材到轨道失败: {img_path}, 错误: {e}")
 
     def _add_audio_and_subtitles(self, script, audio_clips, subtitle_segments, materials_map, draft, draft_dir: Path, trange) -> int:
         """添加音频和字幕到轨道
@@ -347,25 +396,32 @@ class DecompressionJianyingExporter:
             clip_map = materials_map.get(clip.id, {})
 
             # 添加音频
-            if "audio" in clip_map:
-                audio_path = str(draft_dir / clip_map["audio"])
+            if "audio" not in clip_map:
+                logger.warning(f"音频素材 {clip.id} 未在 materials_map 中找到，跳过")
+                continue
+
+            audio_path = str(draft_dir / clip_map["audio"])
+            try:
                 audio_material = draft.AudioMaterial(audio_path)
                 script.add_material(audio_material)
+            except Exception as e:
+                logger.warning(f"加载音频素材失败: {audio_path}, 错误: {e}")
+                continue
 
-                material_duration_us = audio_material.duration
+            material_duration_us = audio_material.duration
+            if material_duration_us <= 0:
+                logger.warning(f"音频素材时长为0或无法读取，跳过: {audio_path}")
+                continue
 
-                # 使用素材的实际时长，减去安全余量
-                use_duration_us = material_duration_us - 10000  # 减去10ms余量
-                use_duration_us = max(use_duration_us, 100000)  # 最少0.1秒
+            # 使用素材的实际时长，减去安全余量
+            use_duration_us = max(material_duration_us - 10000, 100000)  # 最少0.1秒
 
-                logger.info(f"音频素材: {audio_path}")
-                logger.info(f"  素材时长: {material_duration_us}us")
-                logger.info(f"  使用时长: {use_duration_us}us")
-                logger.info(f"  开始时间: {current_start_us}us")
+            logger.info(f"音频素材: {audio_path}")
+            logger.info(f"  素材时长: {material_duration_us}us, 使用时长: {use_duration_us}us")
 
-                # 显式指定 source_timerange 和 target_timerange
-                source_timerange = draft.Timerange(0, use_duration_us)
-                target_timerange = draft.Timerange(current_start_us, use_duration_us)
+            try:
+                source_timerange = trange(start=0, duration=use_duration_us)
+                target_timerange = trange(start=current_start_us, duration=use_duration_us)
 
                 audio_seg = draft.AudioSegment(
                     audio_material,
@@ -374,42 +430,71 @@ class DecompressionJianyingExporter:
                     speed=1.0
                 )
                 script.add_segment(audio_seg, "audio_track")
+            except Exception as e:
+                logger.warning(f"添加音频片段到轨道失败: {audio_path}, 错误: {e}")
+                # 仍推进时间线，保持与其他轨道的对齐
+                logger.info(f"跳过失败音频片段，时间线推进 {use_duration_us}us")
 
-                # 更新下一个片段的开始时间，在片段之间添加1ms间隙防止重叠
-                current_start_us += use_duration_us
-                if clip_idx < len(audio_clips) - 1:
-                    current_start_us += 1000  # 添加1ms间隙
+            # 更新下一个片段的开始时间，在片段之间添加1ms间隙防止重叠
+            current_start_us += use_duration_us
+            if clip_idx < len(audio_clips) - 1:
+                current_start_us += 1000  # 添加1ms间隙
 
         total_audio_duration_us = current_start_us
 
         # 添加上传的字幕片段
         if subtitle_segments and len(subtitle_segments) > 0:
             logger.info(f"添加 {len(subtitle_segments)} 个上传的字幕片段...")
-            from src.pyJianYingDraft.metadata import FontType
+            try:
+                from src.pyJianYingDraft.metadata import FontType
+            except ImportError:
+                FontType = None
             text_style = draft.TextStyle(size=13.0, align=1, auto_wrapping=True)
 
+            prev_end_us = 0
             for seg in subtitle_segments:
                 start_us = int(seg.startTime * 1_000_000)
-                duration_us = int((seg.endTime - seg.startTime) * 1_000_000)
+                end_us = int(seg.endTime * 1_000_000)
+                duration_us = end_us - start_us
 
                 if duration_us <= 0:
                     continue
 
-                # 给字幕添加1ms的安全间隙，防止与音频片段重叠
-                safe_start_us = start_us + 1000
-                safe_duration_us = max(duration_us - 2000, 100000)  # 最少0.1秒
+                # 防止与前一个字幕重叠（SRT 字幕时间轴也可能有微小重叠）
+                if start_us < prev_end_us:
+                    start_us = prev_end_us
+                    duration_us = max(end_us - start_us, 100000)  # 最少 0.1 秒
 
-                logger.info(f"字幕: {seg.text}")
-                logger.info(f"  原始开始时间: {start_us}us, 安全开始时间: {safe_start_us}us")
-                logger.info(f"  原始时长: {duration_us}us, 安全时长: {safe_duration_us}us")
+                logger.info(f"字幕: {seg.text}, 开始: {start_us}us, 时长: {duration_us}us")
 
-                text_seg = draft.TextSegment(
-                    seg.text,
-                    trange(start=safe_start_us, duration=safe_duration_us),
-                    font=FontType.新青年体,
-                    style=text_style
-                )
-                script.add_segment(text_seg, "subtitle_track")
+                try:
+                    font = FontType.新青年体 if FontType is not None else None
+                    text_seg = draft.TextSegment(
+                        seg.text,
+                        trange(start=start_us, duration=duration_us),
+                        font=font,
+                        style=text_style
+                    )
+                    script.add_segment(text_seg, "subtitle_track")
+                    prev_end_us = start_us + duration_us
+                except Exception as e:
+                    # 字幕与其他段重叠时，把起始时间推到上一个段的结尾后重试
+                    if "overlap" in str(e).lower():
+                        logger.warning(f"字幕重叠，尝试调整时间: {seg.text}, 错误: {e}")
+                        try:
+                            adjusted_start = prev_end_us + 1000
+                            text_seg = draft.TextSegment(
+                                seg.text,
+                                trange(start=adjusted_start, duration=duration_us),
+                                font=font,
+                                style=text_style
+                            )
+                            script.add_segment(text_seg, "subtitle_track")
+                            prev_end_us = adjusted_start + duration_us
+                        except Exception as retry_error:
+                            logger.warning(f"字幕添加重试失败，跳过: {seg.text}, 错误: {retry_error}")
+                    else:
+                        logger.warning(f"添加字幕失败，跳过: {seg.text}, 错误: {e}")
         else:
             logger.warning("没有上传的字幕片段，跳过字幕轨道")
 
