@@ -315,19 +315,6 @@ class ComfyUIClient(BaseComfyUIClient):
         )
 
 
-# Singleton instance
-_comfyui_client: Optional[ComfyUIClient] = None
-
-
 def get_comfyui_client() -> ComfyUIClient:
-    """Get ComfyUI client singleton"""
-    global _comfyui_client
-    if _comfyui_client is None:
-        _comfyui_client = ComfyUIClient()
-    return _comfyui_client
-
-
-def reset_comfyui_client() -> None:
-    """Reset ComfyUI client singleton"""
-    global _comfyui_client
-    _comfyui_client = None
+    """Create a new ComfyUI client (always reads latest settings)"""
+    return ComfyUIClient()

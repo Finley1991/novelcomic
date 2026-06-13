@@ -56,3 +56,4 @@ backend/data/
 # OS
 .DS_Store
 Thumbs.db
+data/style_prompts/*
